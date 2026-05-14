@@ -1,0 +1,200 @@
+---
+title: "Authentication: sessions, OAuth, and token refresh"
+description: "Register a TaxMaxi account, verify your email, log in to get a Bearer token, and learn how to refresh sessions and authenticate via Coinbase OAuth."
+---
+
+TaxMaxi uses session tokens for authentication. When you log in, the API returns a token that you attach to every subsequent request as a Bearer token in the `Authorization` header. Tokens have an expiration time and can be refreshed without logging in again. For Coinbase integration, TaxMaxi also supports an OAuth flow that the CLI handles automatically, but you can drive it yourself via the API if needed.
+
+## Register
+
+Send `POST /auth/register` with your email, a password of at least 8 characters, and an optional display name:
+
+```bash
+curl -X POST https://api.taxmaxi.com/auth/register \
+  -H "Content-Type: application/json" \
+  -d '{
+    "email": "you@example.com",
+    "password": "your-password",
+    "displayName": "Your Name"
+  }'
+```
+
+The request body fields are:
+
+| Field | Type | Required | Description |
+|---|---|---|---|
+| `email` | string | Yes | Your email address |
+| `password` | string | Yes | Minimum 8 characters |
+| `displayName` | string | No | Display name shown in your profile |
+
+A successful `201` response starts the email verification flow:
+
+```json
+{
+  "email": "you@example.com",
+  "redirectTo": "/verify-email"
+}
+```
+
+If the email is already registered, you receive a `409` error. If the password is too short or weak, you receive a `400` error with a list of unmet requirements.
+
+## Verify your email
+
+After registration, TaxMaxi sends a verification code to your email. Submit it to `POST /auth/verify-email`:
+
+```bash
+curl -X POST https://api.taxmaxi.com/auth/verify-email \
+  -H "Content-Type: application/json" \
+  -d '{
+    "code": "123456"
+  }'
+```
+
+| Field | Type | Required | Description |
+|---|---|---|---|
+| `code` | string | Yes | The verification code from your email |
+
+A successful response returns a `redirectTo` path indicating your account is verified and you can proceed to log in. If the code is invalid or has expired, you receive a `400` error. To resend a code, call `POST /auth/resend-verification` with no body.
+
+<Warning>
+You cannot log in with your local credentials until your email is verified. Attempting to do so returns a `403` response indicating verification is required.
+</Warning>
+
+## Log in
+
+Authenticate with `POST /auth/login`. For a local (email and password) account, set `provider` to `"local"` and pass your credentials in the `credentials` object:
+
+```bash
+curl -X POST https://api.taxmaxi.com/auth/login \
+  -H "Content-Type: application/json" \
+  -d '{
+    "provider": "local",
+    "credentials": {
+      "email": "you@example.com",
+      "password": "your-password"
+    }
+  }'
+```
+
+A successful response:
+
+```json
+{
+  "token": "sess_abc123...",
+  "user": {
+    "id": "usr_...",
+    "email": "you@example.com",
+    "displayName": "Your Name"
+  },
+  "provider": "local",
+  "expiresAt": "2026-06-14T00:00:00.000Z"
+}
+```
+
+| Field | Description |
+|---|---|
+| `token` | Session token — attach this to all authenticated requests |
+| `user` | The authenticated user object |
+| `provider` | The provider used for this login |
+| `expiresAt` | ISO 8601 timestamp when the session expires |
+
+## Authenticate requests
+
+Pass the session token as a Bearer token on every request that requires authentication:
+
+```bash
+curl https://api.taxmaxi.com/auth/me \
+  -H "Authorization: Bearer sess_abc123..."
+```
+
+All protected endpoints return `401 Unauthorized` if the token is missing, invalid, or expired.
+
+## Refresh a session
+
+To extend a session without logging in again, call `POST /auth/refresh` while you still have a valid token:
+
+```bash
+curl -X POST https://api.taxmaxi.com/auth/refresh \
+  -H "Authorization: Bearer sess_abc123..."
+```
+
+```json
+{
+  "token": "sess_newtoken...",
+  "expiresAt": "2026-07-14T00:00:00.000Z"
+}
+```
+
+The response includes a new `token` and updated `expiresAt`. Replace your stored token with the new one.
+
+## OAuth with Coinbase
+
+To connect a Coinbase account, TaxMaxi uses an OAuth flow. The easiest way to run it is with the CLI:
+
+```bash
+tax coinbase connect
+```
+
+If you need to drive the flow from your own application:
+
+1. Call `GET /auth/authorize/coinbase` to get an authorization URL:
+
+```bash
+curl https://api.taxmaxi.com/auth/authorize/coinbase
+```
+
+```json
+{
+  "redirectUrl": "https://login.coinbase.com/oauth2/auth?...",
+  "state": "csrf_state_value"
+}
+```
+
+2. Redirect your user to `redirectUrl`.
+3. After the user authorizes, poll `GET /auth/oauth/:id` (where `:id` is the OAuth session identifier from the authorization response) to check the flow status:
+
+```bash
+curl https://api.taxmaxi.com/auth/oauth/oauth_session_id
+```
+
+```json
+{
+  "id": "oauth_session_id",
+  "provider": "coinbase",
+  "status": "completed",
+  "authorizationUrl": null,
+  "sessionToken": "sess_abc123...",
+  "userId": "usr_...",
+  "message": null,
+  "expiresAt": "2026-06-14T00:00:00.000Z"
+}
+```
+
+The `status` field cycles through `"pending"`, `"completed"`, `"failed"`, or `"expired"`. When `status` is `"completed"`, use the `sessionToken` as your Bearer token for subsequent requests.
+
+## Log out
+
+Invalidate the current session with `POST /auth/logout`:
+
+```bash
+curl -X POST https://api.taxmaxi.com/auth/logout \
+  -H "Authorization: Bearer sess_abc123..."
+```
+
+```json
+{
+  "success": true
+}
+```
+
+## Error reference
+
+| Status | Meaning |
+|---|---|
+| `400` | Validation error — check `message` and `field` in the response body |
+| `400` | Verification code invalid or expired |
+| `400` | Password does not meet minimum requirements |
+| `401` | Invalid credentials or session token |
+| `401` | Session expired — refresh or log in again |
+| `403` | Email not yet verified — complete verification before logging in |
+| `409` | Email already registered |

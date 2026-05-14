@@ -1,0 +1,83 @@
+---
+title: "Jurisdictions: Supported Tax Rules by Country"
+description: "TaxMaxi currently supports German crypto tax law, including the one-year exemption and FIFO accounting. Learn which events are taxable and which are not."
+---
+
+A jurisdiction controls which tax rules TaxMaxi applies when calculating your crypto tax summary. Different countries treat crypto gains, losses, and income differently — what counts as a taxable event, how holding periods are calculated, and which assets or transfers are exempt all depend on local law. TaxMaxi handles this complexity by building jurisdiction-specific logic into the calculation engine, so you get results that reflect the rules that actually apply to you.
+
+## Supported jurisdictions
+
+TaxMaxi currently supports one jurisdiction:
+
+| Jurisdiction key | Country | Status |
+| --- | --- | --- |
+| `"germany"` | Germany | Supported |
+
+Pass the jurisdiction key as a string in the `jurisdiction` field of your tax calculation request. Additional jurisdictions are planned for future releases.
+
+## German crypto tax rules
+
+Germany treats cryptocurrency as a private asset under §23 EStG (Einkommensteuergesetz). The following rules apply.
+
+### The one-year exemption (Haltefrist)
+
+The most significant feature of German crypto tax law is the holding period exemption. If you dispose of a cryptocurrency asset that you held for **more than one year**, the entire gain is tax-free — there is no capital gains tax, regardless of the profit amount.
+
+TaxMaxi reports these tax-free gains in the `taxFreeGains` field of the tax calculation response.
+
+### FIFO cost basis method
+
+Germany requires the FIFO (First In, First Out) method to determine which specific units of an asset are sold in a given disposal. TaxMaxi applies FIFO across your entire transaction history for each asset to calculate:
+
+- The cost basis of each disposed unit
+- The holding period of each disposed unit (used to determine tax-free eligibility)
+- The resulting gain or loss
+
+### Taxable events
+
+The following transaction types generate a taxable event in Germany:
+
+- **Trades** — selling crypto for fiat currency
+- **Swaps** — exchanging one cryptocurrency for another
+- **Spending** — using crypto to pay for goods or services
+
+Gains from these events are reported in `taxableGains` if the asset was held for less than one year, or in `taxFreeGains` if held for more than one year.
+
+### Tax-free events
+
+The following events do not trigger a taxable disposal:
+
+- **Transfers between your own wallets** — moving crypto between addresses you own is not a taxable event
+- **Disposals of assets held for more than one year** — gains are fully exempt under §23 EStG
+
+### Income events
+
+Some transaction types are treated as income rather than capital gains, regardless of holding period. These are taxed in the year the asset is received, at fair market value at the time of receipt:
+
+- **Staking rewards**
+- **Airdrops**
+- **Other income-classified events**
+
+Income totals are reported in the `incomeTotal` field.
+
+## Regulatory context
+
+German crypto tax reporting is increasingly shaped by EU-level regulation:
+
+- **DAC8** — an EU directive that mandates crypto-asset transaction reporting by exchanges and service providers to tax authorities across member states
+- **MiCA** (Markets in Crypto-Assets Regulation) — the EU framework that regulates crypto-asset service providers and affects how exchanges operate and report activity
+
+TaxMaxi is designed to produce output that aligns with these frameworks as they come into effect.
+
+<AccordionGroup>
+  <Accordion title="What counts as 'held for more than one year'?">
+    The holding period starts on the day after acquisition and ends on the day of disposal. If the period exceeds 365 days (366 in a leap year), the asset qualifies for the tax-free exemption. TaxMaxi calculates this per-lot using FIFO, so different lots of the same asset can have different holding periods and different tax treatment.
+  </Accordion>
+  <Accordion title="How does FIFO interact with multiple purchases?">
+    If you bought ETH in three separate purchases, FIFO requires that the earliest purchase is treated as sold first. This can result in some disposals being tax-free (early lots held for over a year) and some being taxable (later lots held for under a year), even within the same calendar year.
+  </Accordion>
+</AccordionGroup>
+
+<Note>
+  TaxMaxi provides tax data as a tool to assist with preparation and understanding. It is not a substitute for professional tax advice. Crypto tax law is complex and fact-specific — consult a qualified tax advisor for guidance on your individual situation.
+</Note>

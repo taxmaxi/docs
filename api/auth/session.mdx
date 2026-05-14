@@ -1,0 +1,246 @@
+---
+title: "Session management — TaxMaxi Auth API"
+description: "Retrieve your user profile, refresh your session token before it expires, update your display name, change your password, and log out of TaxMaxi."
+---
+
+Once you have a session token from login or an OAuth callback, all session management endpoints let you inspect and update your account. Every endpoint in this section requires an `Authorization: Bearer <token>` header. If your token has expired or is otherwise invalid, you will receive a `401 SessionInvalidError` — log in again to get a new one.
+
+## GET /auth/me
+
+Returns the authenticated user's profile and all linked provider identities.
+
+### Response — 200 OK
+
+<ResponseField name="user" type="object" required>
+  <Expandable title="user properties" defaultOpen>
+    <ResponseField name="id" type="string" required>
+      Unique identifier for the user.
+    </ResponseField>
+    <ResponseField name="email" type="string" required>
+      The user's email address.
+    </ResponseField>
+    <ResponseField name="displayName" type="string">
+      The user's display name, if set.
+    </ResponseField>
+    <ResponseField name="createdAt" type="string" required>
+      ISO 8601 timestamp of when the account was created.
+    </ResponseField>
+    <ResponseField name="updatedAt" type="string" required>
+      ISO 8601 timestamp of the most recent profile update.
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+<ResponseField name="identities" type="object[]" required>
+  All authentication provider identities linked to this account.
+  <Expandable title="identity properties">
+    <ResponseField name="id" type="string" required>
+      Unique identifier for this identity. Use this with `DELETE /auth/identities/:identityId` to unlink.
+    </ResponseField>
+    <ResponseField name="provider" type="string" required>
+      The provider this identity belongs to, e.g. `"local"` or `"coinbase"`.
+    </ResponseField>
+    <ResponseField name="createdAt" type="string" required>
+      ISO 8601 timestamp of when this identity was linked.
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+### Errors
+
+| Status | Error | Description |
+|--------|-------|-------------|
+| 401 | `SessionInvalidError` | The token is expired or invalid. Log in again. |
+| 404 | `AuthUserNotFoundError` | No user was found for the authenticated session. |
+
+<CodeGroup>
+
+```bash Get current user
+curl --request GET \
+  --url https://api.taxmaxi.com/auth/me \
+  --header 'Authorization: Bearer YOUR_TOKEN'
+```
+
+</CodeGroup>
+
+```json Response
+{
+  "user": {
+    "id": "usr_01HXYZ...",
+    "email": "you@example.com",
+    "displayName": "Max Mustermann",
+    "createdAt": "2026-01-01T09:00:00.000Z",
+    "updatedAt": "2026-05-14T10:00:00.000Z"
+  },
+  "identities": [
+    {
+      "id": "idn_01HABC...",
+      "provider": "local",
+      "createdAt": "2026-01-01T09:00:00.000Z"
+    }
+  ]
+}
+```
+
+---
+
+## PUT /auth/me
+
+Updates your profile. Currently supports updating your display name. Pass `null` to clear it.
+
+### Request body
+
+<ParamField body="displayName" type="string | null" required>
+  Your new display name. Pass `null` to remove it.
+</ParamField>
+
+### Response — 200 OK
+
+Same shape as `GET /auth/me`.
+
+### Errors
+
+| Status | Error | Description |
+|--------|-------|-------------|
+| 400 | `AuthValidationError` | The request body is invalid. |
+| 401 | `SessionInvalidError` | The token is expired or invalid. |
+| 404 | `AuthUserNotFoundError` | No user was found for the authenticated session. |
+
+<CodeGroup>
+
+```bash Update display name
+curl --request PUT \
+  --url https://api.taxmaxi.com/auth/me \
+  --header 'Authorization: Bearer YOUR_TOKEN' \
+  --header 'Content-Type: application/json' \
+  --data '{ "displayName": "Max Mustermann" }'
+```
+
+```bash Clear display name
+curl --request PUT \
+  --url https://api.taxmaxi.com/auth/me \
+  --header 'Authorization: Bearer YOUR_TOKEN' \
+  --header 'Content-Type: application/json' \
+  --data '{ "displayName": null }'
+```
+
+</CodeGroup>
+
+---
+
+## POST /auth/refresh
+
+Issues a new session token with an extended expiration time. Call this before your current token expires to maintain an uninterrupted session.
+
+### Response — 200 OK
+
+<ResponseField name="token" type="string" required>
+  The new session token. Replace your stored token with this value.
+</ResponseField>
+
+<ResponseField name="expiresAt" type="string" required>
+  ISO 8601 timestamp when the new token expires.
+</ResponseField>
+
+### Errors
+
+| Status | Error | Description |
+|--------|-------|-------------|
+| 401 | `SessionInvalidError` | The existing token is already expired or invalid. Log in again. |
+
+<CodeGroup>
+
+```bash Refresh session token
+curl --request POST \
+  --url https://api.taxmaxi.com/auth/refresh \
+  --header 'Authorization: Bearer YOUR_TOKEN'
+```
+
+</CodeGroup>
+
+```json Response
+{
+  "token": "sess_01HNEW...",
+  "expiresAt": "2026-07-14T10:00:00.000Z"
+}
+```
+
+---
+
+## POST /auth/logout
+
+Invalidates the current session token immediately. After a successful logout, the token can no longer be used for any authenticated request.
+
+### Response — 200 OK
+
+<ResponseField name="success" type="boolean" required>
+  `true` when the session was invalidated successfully.
+</ResponseField>
+
+### Errors
+
+| Status | Error | Description |
+|--------|-------|-------------|
+| 401 | `SessionInvalidError` | The token is already expired or invalid. |
+
+<CodeGroup>
+
+```bash Logout
+curl --request POST \
+  --url https://api.taxmaxi.com/auth/logout \
+  --header 'Authorization: Bearer YOUR_TOKEN'
+```
+
+</CodeGroup>
+
+```json Response
+{
+  "success": true
+}
+```
+
+---
+
+## POST /auth/change-password
+
+Changes the password for a local account. You must provide your current password for verification. This endpoint is only available to users who have a local identity linked — OAuth-only accounts cannot use it.
+
+On success, the response is `204 No Content`.
+
+### Request body
+
+<ParamField body="currentPassword" type="string" required>
+  Your existing password, used to verify your identity before the change is applied.
+</ParamField>
+
+<ParamField body="newPassword" type="string" required>
+  The new password. Must be at least 8 characters.
+</ParamField>
+
+### Response — 204 No Content
+
+No response body is returned on success.
+
+### Errors
+
+| Status | Error | Description |
+|--------|-------|-------------|
+| 400 | `NoLocalIdentityError` | Your account does not have a local provider linked. Password change is unavailable. |
+| 400 | `PasswordWeakError` | The new password does not meet strength requirements. The `requirements` array lists each unmet rule. |
+| 401 | `ChangePasswordError` | The `currentPassword` is incorrect. |
+| 401 | `SessionInvalidError` | The token is expired or invalid. |
+
+<CodeGroup>
+
+```bash Change password
+curl --request POST \
+  --url https://api.taxmaxi.com/auth/change-password \
+  --header 'Authorization: Bearer YOUR_TOKEN' \
+  --header 'Content-Type: application/json' \
+  --data '{
+    "currentPassword": "kNmGP3sW_ygVLdcNVbxU",
+    "newPassword": "NewStr0ng!Pass2026"
+  }'
+```
+
+</CodeGroup>

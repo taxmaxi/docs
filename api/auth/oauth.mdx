@@ -1,0 +1,233 @@
+---
+title: "OAuth authentication flow — TaxMaxi Auth API"
+description: "Connect a Coinbase account or other OAuth provider to TaxMaxi using the browser redirect flow or a polling flow for CLI and non-browser environments."
+---
+
+TaxMaxi supports OAuth for providers like Coinbase. Two flows are available: a **browser redirect flow** for web applications, and a **polling flow** for CLI and headless environments where you cannot intercept a redirect. Both flows start at `GET /auth/authorize/:provider` and end with a session token you use to authenticate all subsequent requests.
+
+## Browser redirect flow
+
+In a browser context, you redirect the user to the provider's authorization page and handle the callback when they return.
+
+<Steps>
+  <Step title="Get the authorization URL">
+    Call `GET /auth/authorize/:provider` to retrieve the URL to redirect your user to. Save the `state` value — you will need it to verify the callback.
+
+    ```bash
+    curl --request GET \
+      "https://api.taxmaxi.com/auth/authorize/coinbase?redirectTo=/dashboard"
+    ```
+
+    ```json
+    {
+      "redirectUrl": "https://login.coinbase.com/oauth2/auth?client_id=...&state=abc123",
+      "state": "abc123"
+    }
+    ```
+  </Step>
+  <Step title="Redirect the user">
+    Send the user to the `redirectUrl`. After they grant access, the provider redirects them to `/auth/callback/coinbase` with `code` and `state` query parameters.
+  </Step>
+  <Step title="Exchange the code for a session">
+    The callback endpoint automatically exchanges the authorization code for a session token. The response has the same shape as `POST /auth/login`.
+
+    ```json
+    {
+      "token": "sess_01HXYZ...",
+      "user": {
+        "id": "usr_01HXYZ...",
+        "email": "you@example.com",
+        "displayName": "Max Mustermann"
+      },
+      "provider": "coinbase",
+      "expiresAt": "2026-06-14T10:00:00.000Z"
+    }
+    ```
+  </Step>
+</Steps>
+
+---
+
+## GET /auth/authorize/:provider
+
+Returns an authorization URL and a `state` value. Redirect the user to `redirectUrl` to start the OAuth flow.
+
+### Path parameters
+
+<ParamField path="provider" type="string" required>
+  The OAuth provider to authorize with, e.g. `coinbase`.
+</ParamField>
+
+### Query parameters
+
+<ParamField query="redirectTo" type="string">
+  An optional frontend-relative path to navigate to after the browser-based OAuth flow completes (e.g. `/dashboard`).
+</ParamField>
+
+### Response — 200 OK
+
+<ResponseField name="redirectUrl" type="string" required>
+  The full URL to redirect the user to for OAuth authorization.
+</ResponseField>
+
+<ResponseField name="state" type="string" required>
+  A CSRF-protection token. In the polling flow, use this value as the `id` when calling `GET /auth/oauth/:id`.
+</ResponseField>
+
+### Errors
+
+| Status | Error | Description |
+|--------|-------|-------------|
+| 404 | `ProviderNotFoundError` | The specified provider is not enabled. The `provider` field confirms which one was requested. |
+
+---
+
+## GET /auth/callback/:provider
+
+Handles the OAuth provider redirect. The provider calls this endpoint automatically with a `code` and `state` after the user authorizes. It exchanges the code for tokens and returns a session.
+
+### Path parameters
+
+<ParamField path="provider" type="string" required>
+  The OAuth provider, e.g. `coinbase`.
+</ParamField>
+
+### Query parameters
+
+<ParamField query="code" type="string" required>
+  The authorization code from the OAuth provider.
+</ParamField>
+
+<ParamField query="state" type="string" required>
+  The state parameter for CSRF validation. Must match the value returned by `/auth/authorize/:provider`.
+</ParamField>
+
+<ParamField query="error" type="string">
+  An error code from the provider if authorization failed.
+</ParamField>
+
+<ParamField query="error_description" type="string">
+  A human-readable description of the provider error.
+</ParamField>
+
+### Response — 200 OK
+
+Same as `POST /auth/login`: returns `token`, `user`, `provider`, and `expiresAt`.
+
+### Errors
+
+| Status | Error | Description |
+|--------|-------|-------------|
+| 400 | `OAuthStateInvalidError` | The `state` parameter does not match. Restart the OAuth flow. |
+| 401 | `ProviderAuthError` | The OAuth provider rejected the authorization code. |
+| 404 | `ProviderNotFoundError` | The specified provider is not enabled. |
+
+---
+
+## Polling flow (CLI and headless environments)
+
+When you cannot intercept a browser redirect — for example in a terminal CLI — show the user the `redirectUrl` and poll for completion using the `state` value as the session ID.
+
+<Steps>
+  <Step title="Get the authorization URL">
+    Call `GET /auth/authorize/coinbase` and display the `redirectUrl` to the user so they can open it in a browser. Record the `state` value.
+  </Step>
+  <Step title="User authorizes in the browser">
+    The user opens the URL, grants access, and the provider redirects back to TaxMaxi automatically.
+  </Step>
+  <Step title="Poll for completion">
+    Poll `GET /auth/oauth/:id` (where `:id` is the `state` from step 1) until `status` is `"completed"`. The `sessionToken` field contains your bearer token.
+
+    ```bash
+    curl --request GET \
+      "https://api.taxmaxi.com/auth/oauth/abc123"
+    ```
+
+    ```json
+    {
+      "id": "abc123",
+      "provider": "coinbase",
+      "status": "completed",
+      "sessionToken": "sess_01HXYZ...",
+      "userId": "usr_01HXYZ...",
+      "authorizationUrl": null,
+      "message": null,
+      "expiresAt": "2026-06-14T10:00:00.000Z"
+    }
+    ```
+  </Step>
+</Steps>
+
+---
+
+## GET /auth/oauth/:id
+
+Returns the current status of an OAuth session. Use this to poll for completion in headless or CLI flows.
+
+### Path parameters
+
+<ParamField path="id" type="string" required>
+  The OAuth session ID. This is the `state` value returned by `GET /auth/authorize/:provider`.
+</ParamField>
+
+### Response — 200 OK
+
+<ResponseField name="id" type="string" required>
+  The OAuth session ID.
+</ResponseField>
+
+<ResponseField name="provider" type="string" required>
+  The OAuth provider for this session.
+</ResponseField>
+
+<ResponseField name="status" type="string" required>
+  The current session status. One of:
+  - `pending` — the user has not yet authorized in the browser
+  - `completed` — authorization succeeded; `sessionToken` and `userId` are populated
+  - `failed` — the authorization was rejected or an error occurred
+  - `expired` — the session window has passed; restart the flow
+</ResponseField>
+
+<ResponseField name="authorizationUrl" type="string">
+  The OAuth authorization URL, if still available.
+</ResponseField>
+
+<ResponseField name="sessionToken" type="string">
+  The session bearer token. Only present when `status` is `"completed"`. Use this as `Authorization: Bearer <sessionToken>` on protected requests.
+</ResponseField>
+
+<ResponseField name="userId" type="string">
+  The authenticated user's ID. Only present when `status` is `"completed"`.
+</ResponseField>
+
+<ResponseField name="message" type="string">
+  A human-readable message, present when `status` is `"failed"` or `"expired"`.
+</ResponseField>
+
+<ResponseField name="expiresAt" type="string" required>
+  ISO 8601 timestamp when this OAuth session expires.
+</ResponseField>
+
+### Errors
+
+| Status | Error | Description |
+|--------|-------|-------------|
+| 401 | `ProviderAuthError` | The OAuth provider returned an error for this session. |
+
+<CodeGroup>
+
+```bash Get authorization URL
+curl --request GET \
+  "https://api.taxmaxi.com/auth/authorize/coinbase"
+```
+
+```bash Poll OAuth session
+curl --request GET \
+  "https://api.taxmaxi.com/auth/oauth/STATE_VALUE_HERE"
+```
+
+</CodeGroup>
+
+<Tip>
+  Poll `GET /auth/oauth/:id` every 2–3 seconds. Stop polling when `status` is `"completed"`, `"failed"`, or `"expired"`. If the session expires, restart from `GET /auth/authorize/:provider`.
+</Tip>

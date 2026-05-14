@@ -1,0 +1,216 @@
+---
+title: "List and create sources — TaxMaxi Sources API"
+description: "Retrieve all sources linked to your account, or create a new source from an onchain wallet address — with optional immediate sync on creation."
+---
+
+Sources are the starting point for any tax calculation in TaxMaxi. A source maps to a single onchain wallet address. You can list all sources attached to your account, or create a new one by providing a wallet address. Creating a source is idempotent — if you submit the same wallet address twice, the API returns the existing source rather than creating a duplicate. Pass `sync: true` in the create request to kick off a sync job immediately, saving you a separate API call.
+
+## List sources
+
+Retrieves all sources associated with the authenticated user.
+
+```
+GET /v1/sources
+```
+
+**Required header:** `Authorization: Bearer <token>`
+
+### Response fields
+
+<ResponseField name="sources" type="object[]" required>
+  Array of source objects belonging to your account.
+
+  <Expandable title="source properties">
+    <ResponseField name="id" type="string" required>
+      Unique identifier for the source.
+    </ResponseField>
+    <ResponseField name="name" type="string" required>
+      Display name for the source.
+    </ResponseField>
+    <ResponseField name="providerKey" type="string" required>
+      Identifies the exchange provider for this source (e.g. `"coinbase"`). `null` for onchain wallet sources.
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+### Example
+
+<CodeGroup>
+
+```bash cURL
+curl https://api.taxmaxi.com/v1/sources \
+  --header "Authorization: Bearer <token>"
+```
+
+</CodeGroup>
+
+```json Response
+{
+  "sources": [
+    {
+      "id": "src_01hzqe3kj8t2v5n6b7d9f0gx",
+      "name": "My Solana Wallet",
+      "providerKey": "4Nd1m...bZx3"
+    }
+  ]
+}
+```
+
+### Errors
+
+| Status | Code | Description |
+|--------|------|-------------|
+| `400` | `SourceBadRequestError` | The request is malformed or contains invalid parameters. |
+| `500` | `InternalServerError` | An unexpected server error occurred. |
+
+---
+
+## Create a source
+
+Creates a new source for the given wallet address, or returns the existing source if one already exists for that address. Supports both authenticated and anonymous requests.
+
+```
+POST /v1/sources
+```
+
+**Optional header:** `Authorization: Bearer <token>` — omit to create an anonymous source.
+
+### Request body
+
+<ParamField body="type" type="string" required>
+  The source type. Must be `"onchain"`.
+</ParamField>
+
+<ParamField body="walletAddress" type="string" required>
+  The onchain wallet address to import. Must be a non-empty string.
+</ParamField>
+
+<ParamField body="name" type="string">
+  A display name for the source. If omitted, the API assigns a default name.
+</ParamField>
+
+<ParamField body="sync" type="boolean">
+  When `true`, starts a sync job immediately after the source is created or found. The response includes the sync job details in `syncJob`.
+</ParamField>
+
+<ParamField body="year" type="integer">
+  The tax year to associate with this source. Must be 2020 or later.
+</ParamField>
+
+<ParamField body="jurisdiction" type="string">
+  The jurisdiction to use for tax calculations (e.g. `"germany"`).
+</ParamField>
+
+### Response fields
+
+<ResponseField name="source" type="object" required>
+  The created or reused source.
+
+  <Expandable title="source properties">
+    <ResponseField name="id" type="string" required>
+      Unique identifier for the source.
+    </ResponseField>
+    <ResponseField name="name" type="string" required>
+      Display name for the source.
+    </ResponseField>
+    <ResponseField name="providerKey" type="string" required>
+      Identifies the exchange provider for this source (e.g. `"coinbase"`). `null` for onchain wallet sources.
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+<ResponseField name="created" type="boolean" required>
+  `true` if a new source was created. `false` if an existing source was found and reused — no duplicate is created.
+</ResponseField>
+
+<ResponseField name="syncJob" type="object | null" required>
+  Details of the sync job started on creation. Present only when you passed `sync: true`; `null` otherwise.
+
+  <Expandable title="syncJob properties">
+    <ResponseField name="sourceId" type="string" required>
+      ID of the source being synced.
+    </ResponseField>
+    <ResponseField name="jobId" type="string" required>
+      Unique identifier for the sync job. Use this to poll job status.
+    </ResponseField>
+    <ResponseField name="status" type="string" required>
+      Initial job status. One of `queued`, `running`, `completed`, or `failed`.
+    </ResponseField>
+    <ResponseField name="message" type="string | null" required>
+      Optional status message or error detail.
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+<ResponseField name="claim" type="object | null" required>
+  An anonymous claim handle. Returned only when the request is made without authentication. Use `claimToken` to associate the source with an account later. `null` for authenticated requests.
+
+  <Expandable title="claim properties">
+    <ResponseField name="requestId" type="string" required>
+      Identifier for the anonymous request.
+    </ResponseField>
+    <ResponseField name="claimToken" type="string" required>
+      Token used to claim the anonymous source and link it to an account.
+    </ResponseField>
+    <ResponseField name="expiresAt" type="string" required>
+      ISO 8601 timestamp after which the claim token is no longer valid.
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+### Examples
+
+<CodeGroup>
+
+```bash Create and sync immediately
+curl --request POST https://api.taxmaxi.com/v1/sources \
+  --header "Authorization: Bearer <token>" \
+  --header "Content-Type: application/json" \
+  --data '{
+    "type": "onchain",
+    "walletAddress": "4Nd1mBQtrMJVYVfKf2PX6UB5VDiMSBU7eFnEYWRdH5aq",
+    "name": "My Solana Wallet",
+    "sync": true,
+    "year": 2024,
+    "jurisdiction": "germany"
+  }'
+```
+
+```bash Create without sync
+curl --request POST https://api.taxmaxi.com/v1/sources \
+  --header "Authorization: Bearer <token>" \
+  --header "Content-Type: application/json" \
+  --data '{
+    "type": "onchain",
+    "walletAddress": "4Nd1mBQtrMJVYVfKf2PX6UB5VDiMSBU7eFnEYWRdH5aq"
+  }'
+```
+
+</CodeGroup>
+
+```json Response (sync: true)
+{
+  "source": {
+    "id": "src_01hzqe3kj8t2v5n6b7d9f0gx",
+    "name": "My Solana Wallet",
+    "providerKey": "4Nd1mBQtrMJVYVfKf2PX6UB5VDiMSBU7eFnEYWRdH5aq"
+  },
+  "created": true,
+  "syncJob": {
+    "sourceId": "src_01hzqe3kj8t2v5n6b7d9f0gx",
+    "jobId": "job_01hzqe4xr7p3w8m0c2e5h1ky",
+    "status": "queued",
+    "message": null
+  },
+  "claim": null
+}
+```
+
+### Errors
+
+| Status | Code | Description |
+|--------|------|-------------|
+| `400` | `SourceBadRequestError` | The request body is missing required fields or contains invalid values. |
+| `401` | `UnauthorizedError` | The bearer token is missing or invalid. |
+| `402` | `SourcePaymentRequiredError` | Your account has reached its source limit or requires a paid plan. |
+| `500` | `InternalServerError` | An unexpected server error occurred. |

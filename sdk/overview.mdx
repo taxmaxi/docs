@@ -1,0 +1,92 @@
+---
+title: "TaxMaxi JavaScript SDK: Promise and Effect client"
+description: "The official TypeScript client for the TaxMaxi API. Connect sources, run syncs, and compute tax summaries in Node.js or browser environments."
+---
+
+The TaxMaxi JavaScript SDK wraps the TaxMaxi REST API in a fully-typed TypeScript client. It ships two interfaces side by side: a standard Promise-based API that works in any JavaScript environment, and an advanced [Effect](https://effect.website)-based API for teams already using the Effect ecosystem. You pick the one that fits your stack — both surfaces are exposed on every `TaxMaxi` instance.
+
+## Authentication modes
+
+The SDK supports three ways to authenticate, each suited to a different runtime:
+
+| Mode | Factory | When to use |
+|---|---|---|
+| API key / bearer token | `new TaxMaxi({ apiKey })` | Server-side scripts, CLI tools, and automated pipelines where you hold a session token |
+| Browser session (cookie) | `TaxMaxi.fromBrowserSession()` | Browser apps that authenticate via your own login flow and rely on session cookies |
+| Server-side request forwarding | `TaxMaxi.fromRequest({ cookieHeader })` | SSR frameworks (Next.js, SvelteKit, etc.) that need to forward incoming cookies |
+
+## Quick example
+
+The following example installs the package, creates an API-key client, lists your sources, and computes a German tax summary for 2024.
+
+<Steps>
+  <Step title="Install the package">
+
+```bash
+npm install taxmaxi
+```
+
+  </Step>
+  <Step title="Create a client">
+
+```typescript
+import { TaxMaxi } from "taxmaxi"
+
+const client = new TaxMaxi({ apiKey: "your-session-token" })
+```
+
+  </Step>
+  <Step title="List sources and calculate tax">
+
+```typescript
+const { sources } = await client.sources.list()
+const source = sources[0]
+
+const { jobId } = await client.sources.startSync({ sourceId: source.id })
+
+// Poll until the sync job completes
+let job = await client.sources.getSyncJob({ sourceId: source.id, jobId })
+while (job.status === "queued" || job.status === "running") {
+  await new Promise((resolve) => setTimeout(resolve, 2000))
+  job = await client.sources.getSyncJob({ sourceId: source.id, jobId })
+}
+
+const tax = await client.sources.calculateTax({
+  sourceId: source.id,
+  year: 2024,
+  jurisdiction: "germany",
+})
+
+console.log(tax)
+```
+
+  </Step>
+</Steps>
+
+## Two API surfaces
+
+Every `TaxMaxi` instance exposes the same operations through two namespaces:
+
+- **Promise-based** (`client.sources`, `client.auth`) — the default interface. Methods return standard `Promise` values. Use this for most applications.
+- **Effect-based** (`client.effect.sources`, `client.effect.auth`) — an advanced interface that returns [Effect](https://effect.website) values instead of Promises. Use this if you are already composing Effect pipelines.
+
+<Note>
+  The Effect interface is intended for advanced use cases. If you are new to TaxMaxi or to Effect, start with the Promise-based interface.
+</Note>
+
+## Next steps
+
+<CardGroup cols={2}>
+  <Card title="Installation" icon="package" href="/sdk/installation">
+    Install the package and configure your client for API key, browser session, or SSR usage.
+  </Card>
+  <Card title="Sources" icon="database" href="/sdk/sources">
+    List sources, run sync jobs, and compute tax summaries using the SDK.
+  </Card>
+  <Card title="Error handling" icon="triangle-alert" href="/sdk/error-handling">
+    Catch and inspect `TaxMaxiError` values with typed status codes and field errors.
+  </Card>
+  <Card title="API reference" icon="book-open" href="/api/sources/overview">
+    Browse the full REST API that the SDK wraps.
+  </Card>
+</CardGroup>

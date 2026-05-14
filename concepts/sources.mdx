@@ -1,0 +1,91 @@
+---
+title: "Sources: Connected Accounts and Wallets"
+description: "A source is a connected exchange account or onchain wallet that TaxMaxi syncs and taxes. Learn how to create, reuse, and identify sources."
+---
+
+A source is the fundamental unit in TaxMaxi. It represents a single connected account — either an exchange account (such as Coinbase, connected via OAuth) or an onchain wallet identified by a public address. Every sync job and tax calculation is scoped to a source. Before TaxMaxi can calculate tax for any account, you must create a source for it and complete at least one successful sync.
+
+## Source types
+
+TaxMaxi currently supports two source types.
+
+<AccordionGroup>
+  <Accordion title="Onchain wallet">
+    An onchain wallet source is identified by a public wallet address. You create it by posting to `POST /v1/sources` with `type: "onchain"` and the `walletAddress` field. No OAuth or authentication with the provider is required — TaxMaxi fetches the data directly from the chain.
+
+    ```json
+    {
+      "type": "onchain",
+      "walletAddress": "0xYourWalletAddressHere",
+      "name": "My ETH wallet"
+    }
+    ```
+  </Accordion>
+  <Accordion title="OAuth-connected exchange (Coinbase)">
+    Exchange sources are connected via OAuth. For Coinbase, you initiate the OAuth flow through `GET /auth/authorize/coinbase`, complete authorization in the browser, and TaxMaxi creates the source automatically when the OAuth session completes. The source's `providerKey` field will be `"coinbase"`.
+
+    The CLI handles this entire flow with a single command:
+
+    ```bash
+    tax coinbase connect
+    ```
+  </Accordion>
+</AccordionGroup>
+
+## The source object
+
+When you create a source, the API returns a `SourceCreateResponse`:
+
+```json
+{
+  "source": {
+    "id": "src_01j...",
+    "name": "My ETH wallet",
+    "providerKey": null
+  },
+  "created": true,
+  "syncJob": null,
+  "claim": null
+}
+```
+
+| Field | Description |
+| --- | --- |
+| `source.id` | Unique identifier for the source. Use this in all subsequent API calls. |
+| `source.name` | Human-readable label for the source. |
+| `source.providerKey` | Identifies the exchange provider, e.g. `"coinbase"`. `null` for onchain wallets. |
+| `created` | `true` if a new source was created, `false` if an existing source was reused. |
+| `syncJob` | Populated when `sync: true` is passed in the request, otherwise `null`. |
+| `claim` | Populated for anonymous sources. Contains a token to claim the source later. |
+
+## Source reuse
+
+TaxMaxi deduplicates sources by wallet address. If you call `POST /v1/sources` with a wallet address that already exists in your account, the API returns the existing source rather than creating a duplicate. You can detect this with the `created` field in the response: `true` means a new source was created, `false` means an existing one was returned.
+
+<Tip>
+  If you are building an integration, always check the `created` field. Idempotent source creation means you can safely call `POST /v1/sources` on every request without accumulating duplicates.
+</Tip>
+
+## Creating a source with an immediate sync
+
+Pass `sync: true` in the create request to start a sync job immediately after the source is created. You can also include `year` and `jurisdiction` to pre-configure the sync scope.
+
+```json
+{
+  "type": "onchain",
+  "walletAddress": "0xYourWalletAddressHere",
+  "sync": true,
+  "year": 2024,
+  "jurisdiction": "germany"
+}
+```
+
+When `sync: true` is set, the `syncJob` field in the response will contain the initial job details. See [Sync jobs](/concepts/sync-jobs) for how to poll the job to completion.
+
+## Anonymous sources
+
+Sources can be created without an authenticated user. Anonymous sources are assigned a `claim` token in the response, which you can use to associate the source with a user account later. This is useful for letting end users preview a tax result before signing up.
+
+<Note>
+  A source must complete at least one successful sync before you can calculate tax for it. See [Sync jobs](/concepts/sync-jobs) for the full sync lifecycle.
+</Note>

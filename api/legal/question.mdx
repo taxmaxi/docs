@@ -1,0 +1,186 @@
+---
+title: "Question references — TaxMaxi Legal API"
+description: "Ask a natural language German tax question and receive ranked statutory clause citations. Use for AI grounding or surfacing legal basis in your product."
+---
+
+Send a natural language tax question to `POST /v1/legal/references/question` and receive the most relevant statutory clauses from the German crypto tax ruleset, ranked by relevance score. This endpoint is designed for AI pipelines that need statute-backed grounding before generating a response, and for product surfaces that want to display the legal basis behind a tax answer. It does not require authentication.
+
+## POST /v1/legal/references/question
+
+Ranks legal clauses from the configured ruleset to answer a natural language question.
+
+### Request body
+
+<ParamField body="question" type="string" required>
+  The tax question to answer. Must be a non-empty string written in natural language. Example: `"Is staking income taxable in Germany?"`, `"How long do I need to hold crypto to be exempt from capital gains tax?"`.
+</ParamField>
+
+<ParamField body="jurisdictionCode" type="string">
+  The jurisdiction to query. Defaults to the German jurisdiction (`"DE"`) when omitted.
+</ParamField>
+
+<ParamField body="ruleSetVersion" type="string">
+  Pin the response to a specific ruleset version. When omitted, the latest active ruleset is used. Pinning a version ensures reproducible responses across requests.
+</ParamField>
+
+<ParamField body="maxClauses" type="integer">
+  Maximum number of clause results to return. Must be between 1 and 20. Omit to use the server default.
+</ParamField>
+
+### Response — 200 OK
+
+<ResponseField name="jurisdictionCode" type="string" required>
+  The jurisdiction that was queried (e.g. `"DE"`).
+</ResponseField>
+
+<ResponseField name="ruleSetVersion" type="string | null" required>
+  The version identifier of the ruleset used to resolve the references, or `null` if no versioned ruleset was active.
+</ResponseField>
+
+<ResponseField name="ruleSetName" type="string | null" required>
+  The human-readable name of the active ruleset, or `null` if unavailable.
+</ResponseField>
+
+<ResponseField name="insufficiencyText" type="string | null" required>
+  A warning message when the ruleset does not contain enough information to answer the question reliably. `null` when the ruleset is sufficient. Surface this to users or use it to guard against hallucination in AI pipelines — see the tip below.
+</ResponseField>
+
+<ResponseField name="references" type="object[]" required>
+  The statutory clauses most relevant to the question, ordered by descending score.
+
+  <Expandable title="properties">
+    <ResponseField name="clauseKey" type="string" required>
+      Stable identifier for the clause within the ruleset.
+    </ResponseField>
+    <ResponseField name="sectionCode" type="string | null" required>
+      The section code of the cited provision (e.g. `"§ 23 Abs. 1 Nr. 2 EStG"`), or `null` if not applicable.
+    </ResponseField>
+    <ResponseField name="heading" type="string | null" required>
+      The heading of the cited provision, or `null` if the source does not include one.
+    </ResponseField>
+    <ResponseField name="randnummer" type="string" required>
+      The marginal number (Randnummer) used to locate this passage within the source document.
+    </ResponseField>
+    <ResponseField name="summary" type="string | null" required>
+      A short plain-language summary of the clause, or `null` if not available.
+    </ResponseField>
+    <ResponseField name="clauseText" type="string" required>
+      The full statutory text of the clause.
+    </ResponseField>
+    <ResponseField name="score" type="number" required>
+      Relevance score for this clause relative to the question. Higher values indicate stronger relevance. Use this to order results or to apply a minimum relevance threshold.
+    </ResponseField>
+    <ResponseField name="source" type="object" required>
+      Metadata about the legal source document.
+
+      <Expandable title="properties">
+        <ResponseField name="sourceKey" type="string" required>
+          Stable identifier for the source document within the ruleset.
+        </ResponseField>
+        <ResponseField name="title" type="string" required>
+          Full title of the source document (e.g. `"Einkommensteuergesetz"`).
+        </ResponseField>
+        <ResponseField name="shortTitle" type="string | null" required>
+          Abbreviated title (e.g. `"EStG"`), or `null` if not available.
+        </ResponseField>
+        <ResponseField name="sourceType" type="string" required>
+          The type of legal source (e.g. `"statute"`, `"guidance"`, `"ruling"`).
+        </ResponseField>
+        <ResponseField name="authority" type="string" required>
+          The issuing authority (e.g. `"Bundesministerium der Finanzen"`).
+        </ResponseField>
+        <ResponseField name="sourceUrl" type="string | null" required>
+          A URL to the authoritative source document, or `null` if not publicly available.
+        </ResponseField>
+      </Expandable>
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+### Errors
+
+| Status | Error | Description |
+|--------|-------|-------------|
+| 400 | `LegalReferenceValidationError` | A required field is missing or invalid. The `message` property describes the failure. |
+| 500 | `LegalReferenceInternalError` | The server failed to resolve references. The `message` property provides detail. |
+
+<Tip>
+  Always check `insufficiencyText` before passing clause results to an AI model. When it is non-null, the ruleset does not have enough coverage to answer the question — generating a response from partial context risks producing a confident but incorrect answer. In this case, surface the insufficiency warning to the user or halt the AI pipeline and request human review.
+</Tip>
+
+<CodeGroup>
+
+```bash Request
+curl --request POST \
+  --url https://api.taxmaxi.com/v1/legal/references/question \
+  --header 'Content-Type: application/json' \
+  --data '{
+    "question": "Is staking income taxable in Germany?",
+    "jurisdictionCode": "DE",
+    "maxClauses": 3
+  }'
+```
+
+</CodeGroup>
+
+```json Response
+{
+  "jurisdictionCode": "DE",
+  "ruleSetVersion": "2024.1",
+  "ruleSetName": "German Crypto Tax Ruleset 2024",
+  "insufficiencyText": null,
+  "references": [
+    {
+      "clauseKey": "bmf.2022.crypto.rn58",
+      "sectionCode": null,
+      "heading": "Einkünfte aus der Validierungstätigkeit",
+      "randnummer": "58",
+      "summary": "The BMF 2022 letter confirms that staking rewards are taxable at receipt for validators and delegators alike.",
+      "clauseText": "Die für die Blockerstellung erhaltenen Belohnungen (Block Rewards) und Transaktionsgebühren stellen im Zeitpunkt des Zuflusses steuerpflichtige Einnahmen dar.",
+      "score": 0.94,
+      "source": {
+        "sourceKey": "de.bmf.2022.crypto",
+        "title": "BMF-Schreiben zur ertragsteuerrechtlichen Behandlung von virtuellen Währungen",
+        "shortTitle": "BMF 2022",
+        "sourceType": "guidance",
+        "authority": "Bundesministerium der Finanzen",
+        "sourceUrl": "https://www.bundesfinanzministerium.de/Content/DE/Downloads/BMF_Schreiben/Steuerarten/Einkommensteuer/2022-05-09-Einzelfragen-zur-ertragsteuerrechtlichen-Behandlung-von-virtuellen-Waehrungen.html"
+      }
+    },
+    {
+      "clauseKey": "estg.22.3.rn45",
+      "sectionCode": "§ 22 Nr. 3 EStG",
+      "heading": "Sonstige Einkünfte",
+      "randnummer": "45",
+      "summary": "Income from other recurring sources not covered by §§ 13–21 is taxable as miscellaneous income.",
+      "clauseText": "Einkünfte aus Leistungen, soweit sie weder zu anderen Einkunftsarten (§ 2 Abs. 1 Satz 1 Nr. 1 bis 6) noch zu den Einkünften im Sinne der Nummern 1, 1a, 2 oder 4 gehören ...",
+      "score": 0.89,
+      "source": {
+        "sourceKey": "de.estg",
+        "title": "Einkommensteuergesetz",
+        "shortTitle": "EStG",
+        "sourceType": "statute",
+        "authority": "Bundesministerium der Justiz",
+        "sourceUrl": "https://www.gesetze-im-internet.de/estg/"
+      }
+    },
+    {
+      "clauseKey": "estg.11.1.rn12",
+      "sectionCode": "§ 11 Abs. 1 EStG",
+      "heading": "Zufluss von Einnahmen",
+      "randnummer": "12",
+      "summary": "Income is recognised in the calendar year in which it is received.",
+      "clauseText": "Einnahmen sind innerhalb des Kalenderjahres bezogen, in dem sie dem Steuerpflichtigen zugeflossen sind.",
+      "score": 0.76,
+      "source": {
+        "sourceKey": "de.estg",
+        "title": "Einkommensteuergesetz",
+        "shortTitle": "EStG",
+        "sourceType": "statute",
+        "authority": "Bundesministerium der Justiz",
+        "sourceUrl": "https://www.gesetze-im-internet.de/estg/"
+      }
+    }
+  ]
+}
+```

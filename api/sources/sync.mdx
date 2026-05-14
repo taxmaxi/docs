@@ -1,0 +1,218 @@
+---
+title: "Sync sources and poll job status — TaxMaxi"
+description: "Start a sync job to import and normalize transactions for a source, replay normalization from cached data, and poll job status until completion."
+---
+
+Syncing a source fetches raw transaction records from the blockchain provider and normalizes them into a structured, categorized format ready for tax calculation. You start a sync by calling `POST /v1/sources/:sourceId/sync`, which immediately returns a job object. Because syncs run asynchronously, you then poll `GET /v1/sources/:sourceId/jobs/:jobId` every few seconds until the status reaches `completed` or `failed`. If you want to reprocess existing cached records without re-fetching from the provider — for example, after an update to the normalization logic — use `POST /v1/sources/:sourceId/replay` instead.
+
+**Required header for all sync endpoints:** `Authorization: Bearer <token>`
+
+## Sync lifecycle
+
+A sync job moves through the following states:
+
+| Status | Meaning |
+|--------|---------|
+| `queued` | The job has been accepted and is waiting to run. |
+| `running` | The job is actively fetching and normalizing records. |
+| `completed` | All records were imported and normalized successfully. |
+| `failed` | The job encountered an error. Check `message` for details. |
+
+If a sync is already running for a source when you call `POST /v1/sources/:sourceId/sync`, the API returns the active job rather than starting a duplicate.
+
+---
+
+## Start a sync
+
+Starts a new sync job for the specified source. If an active job already exists, returns that job.
+
+```
+POST /v1/sources/:sourceId/sync
+```
+
+### Path parameters
+
+<ParamField path="sourceId" type="string" required>
+  The ID of the source to sync.
+</ParamField>
+
+### Response fields
+
+<ResponseField name="sourceId" type="string" required>
+  ID of the source being synced.
+</ResponseField>
+
+<ResponseField name="jobId" type="string" required>
+  Unique identifier for the sync job. Use this to poll status.
+</ResponseField>
+
+<ResponseField name="status" type="string" required>
+  Current job status: `queued`, `running`, `completed`, or `failed`.
+</ResponseField>
+
+<ResponseField name="message" type="string | null" required>
+  Optional status message. Contains error details when `status` is `failed`.
+</ResponseField>
+
+### Errors
+
+| Status | Code | Description |
+|--------|------|-------------|
+| `400` | `SourceBadRequestError` | The request is malformed or the source ID is invalid. |
+| `500` | `InternalServerError` | An unexpected server error occurred. |
+
+---
+
+## Replay normalization
+
+Resets derived data for a source and rebuilds it from cached raw records without re-fetching from the blockchain provider. Use replay when you want to apply updated normalization logic to already-imported data.
+
+```
+POST /v1/sources/:sourceId/replay
+```
+
+### Path parameters
+
+<ParamField path="sourceId" type="string" required>
+  The ID of the source to replay.
+</ParamField>
+
+### Response fields
+
+Same as [start a sync](#start-a-sync): `sourceId`, `jobId`, `status`, `message`.
+
+### Errors
+
+| Status | Code | Description |
+|--------|------|-------------|
+| `400` | `SourceBadRequestError` | The request is malformed or the source ID is invalid. |
+| `500` | `InternalServerError` | An unexpected server error occurred. |
+
+---
+
+## Poll job status
+
+Returns the current status of a sync or replay job, including record counters once the job has made progress.
+
+```
+GET /v1/sources/:sourceId/jobs/:jobId
+```
+
+### Path parameters
+
+<ParamField path="sourceId" type="string" required>
+  The ID of the source.
+</ParamField>
+
+<ParamField path="jobId" type="string" required>
+  The ID of the job returned when you started the sync or replay.
+</ParamField>
+
+### Response fields
+
+<ResponseField name="sourceId" type="string" required>
+  ID of the source being synced.
+</ResponseField>
+
+<ResponseField name="jobId" type="string" required>
+  ID of the job.
+</ResponseField>
+
+<ResponseField name="status" type="string" required>
+  Current job status: `queued`, `running`, `completed`, or `failed`.
+</ResponseField>
+
+<ResponseField name="importedRecords" type="number | null" required>
+  Total raw records fetched from the provider. `null` while the job is queued.
+</ResponseField>
+
+<ResponseField name="normalizedRecords" type="number | null" required>
+  Number of records successfully normalized. `null` while the job is queued.
+</ResponseField>
+
+<ResponseField name="failedRecords" type="number | null" required>
+  Number of records that could not be normalized. `null` while the job is queued.
+</ResponseField>
+
+<ResponseField name="message" type="string | null" required>
+  Optional status message. Contains error details when `status` is `failed`.
+</ResponseField>
+
+### Polling pattern
+
+Poll the status endpoint every 2–5 seconds until `status` is `completed` or `failed`. Once `completed`, you can proceed to [calculate tax](/api/sources/tax).
+
+```
+queued → running → completed
+                 → failed
+```
+
+If `status` is `failed`, read `message` for the reason and retry with a fresh sync if appropriate.
+
+### Errors
+
+| Status | Code | Description |
+|--------|------|-------------|
+| `400` | `SourceBadRequestError` | The request is malformed or a path parameter is invalid. |
+| `404` | `SourceNotFoundError` | No job was found for the given source ID and job ID. |
+| `500` | `InternalServerError` | An unexpected server error occurred. |
+
+---
+
+## Full example: start, poll, and confirm
+
+The following example walks through a complete sync: start the job, poll until done, then verify the record counts.
+
+<CodeGroup>
+
+```bash 1. Start sync
+curl --request POST \
+  https://api.taxmaxi.com/v1/sources/src_01hzqe3kj8t2v5n6b7d9f0gx/sync \
+  --header "Authorization: Bearer <token>"
+```
+
+```bash 2. Poll status
+curl https://api.taxmaxi.com/v1/sources/src_01hzqe3kj8t2v5n6b7d9f0gx/jobs/job_01hzqe4xr7p3w8m0c2e5h1ky \
+  --header "Authorization: Bearer <token>"
+```
+
+```bash 3. Replay (optional)
+curl --request POST \
+  https://api.taxmaxi.com/v1/sources/src_01hzqe3kj8t2v5n6b7d9f0gx/replay \
+  --header "Authorization: Bearer <token>"
+```
+
+</CodeGroup>
+
+```json Start sync response
+{
+  "sourceId": "src_01hzqe3kj8t2v5n6b7d9f0gx",
+  "jobId": "job_01hzqe4xr7p3w8m0c2e5h1ky",
+  "status": "queued",
+  "message": null
+}
+```
+
+```json Poll response (running)
+{
+  "sourceId": "src_01hzqe3kj8t2v5n6b7d9f0gx",
+  "jobId": "job_01hzqe4xr7p3w8m0c2e5h1ky",
+  "status": "running",
+  "importedRecords": 312,
+  "normalizedRecords": 280,
+  "failedRecords": 0,
+  "message": null
+}
+```
+
+```json Poll response (completed)
+{
+  "sourceId": "src_01hzqe3kj8t2v5n6b7d9f0gx",
+  "jobId": "job_01hzqe4xr7p3w8m0c2e5h1ky",
+  "status": "completed",
+  "importedRecords": 512,
+  "normalizedRecords": 510,
+  "failedRecords": 2,
+  "message": null
+}
+```

@@ -1,0 +1,111 @@
+---
+title: "Calculate tax for a source — TaxMaxi Sources API"
+description: "Run a jurisdiction-aware tax calculation on a synced source to get taxable gains, losses, tax-free gains, and total income for a given year."
+---
+
+Once a source has a completed sync, you can calculate its tax liability for any year and jurisdiction. TaxMaxi applies FIFO (first-in, first-out) accounting to your normalized transaction records and returns a breakdown of gains, losses, and income. The calculation runs on demand each time you call the endpoint, so you can re-run it after a replay or for different years without any additional setup.
+
+**Required header:** `Authorization: Bearer <token>`
+
+<Note>
+  TaxMaxi provides tax calculation results for informational purposes only. The output of this API is not tax advice. You should consult a qualified tax professional before filing any tax return.
+</Note>
+
+## Calculate tax
+
+Calculates jurisdiction-specific tax figures from normalized FIFO and income data for the specified source.
+
+```
+POST /v1/sources/:sourceId/tax
+```
+
+The source must have a sync with `status: "completed"` before you call this endpoint. If the source has never been synced or the most recent sync failed, the API returns a `404`.
+
+### Path parameters
+
+<ParamField path="sourceId" type="string" required>
+  The ID of the source to calculate tax for.
+</ParamField>
+
+### Request body
+
+<ParamField body="year" type="integer" required>
+  The tax year to calculate. Must be between `1970` and the current year (inclusive).
+</ParamField>
+
+<ParamField body="jurisdiction" type="string" required>
+  The tax jurisdiction to apply. Currently supported: `"germany"`.
+</ParamField>
+
+### Response fields
+
+<ResponseField name="year" type="number" required>
+  The tax year the calculation applies to.
+</ResponseField>
+
+<ResponseField name="currency" type="string" required>
+  The base currency in which all monetary values are expressed (e.g. `"EUR"`).
+</ResponseField>
+
+<ResponseField name="taxableGains" type="number" required>
+  Net gains from crypto assets held for less than one year. These are subject to income tax in Germany.
+</ResponseField>
+
+<ResponseField name="taxableLosses" type="number" required>
+  Net losses from crypto assets held for less than one year. These can offset taxable gains.
+</ResponseField>
+
+<ResponseField name="taxFreeGains" type="number" required>
+  Gains from crypto assets held for more than one year. Under German tax law, these gains are tax-free.
+</ResponseField>
+
+<ResponseField name="incomeTotal" type="number" required>
+  Total income from non-trade events such as staking rewards, airdrops, and other income-classified transactions.
+</ResponseField>
+
+### Errors
+
+| Status | Code | Description |
+|--------|------|-------------|
+| `400` | `SourceBadRequestError` | The request body is missing required fields or contains invalid values. |
+| `404` | `SourceNotFoundError` | No source was found for the given ID, or the source has not completed a sync. |
+| `500` | `InternalServerError` | An unexpected server error occurred. |
+
+### Example
+
+<CodeGroup>
+
+```bash cURL
+curl --request POST \
+  https://api.taxmaxi.com/v1/sources/src_01hzqe3kj8t2v5n6b7d9f0gx/tax \
+  --header "Authorization: Bearer <token>" \
+  --header "Content-Type: application/json" \
+  --data '{
+    "year": 2024,
+    "jurisdiction": "germany"
+  }'
+```
+
+</CodeGroup>
+
+```json Response
+{
+  "year": 2024,
+  "currency": "EUR",
+  "taxableGains": 4250.80,
+  "taxableLosses": 310.50,
+  "taxFreeGains": 12000.00,
+  "incomeTotal": 875.25
+}
+```
+
+## Understanding the response
+
+| Field | Description |
+|-------|-------------|
+| `taxableGains` | Gains from selling or swapping crypto held for less than 12 months. In Germany, these are taxed as income. |
+| `taxableLosses` | Losses from assets held less than 12 months. You can offset these against taxable gains in the same year. |
+| `taxFreeGains` | Gains from assets held for more than 12 months. German tax law exempts these from taxation. |
+| `incomeTotal` | The total value received from staking rewards, airdrops, and similar income events at the time of receipt. |
+
+All values are in the base currency returned in the `currency` field.

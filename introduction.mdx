@@ -1,0 +1,46 @@
+---
+title: "TaxMaxi: crypto tax infrastructure for developers"
+description: "TaxMaxi is an API-first platform that turns raw exchange and onchain activity into machine-readable, tax-ready events for fintechs, wallets, and AI agents."
+---
+
+TaxMaxi is open-source crypto tax infrastructure built for developers. Rather than exporting CSVs and importing them into a consumer tax tool, you connect TaxMaxi to your exchange or wallet and call an API to receive structured, jurisdiction-aware tax data. TaxMaxi handles transaction normalization, FIFO capital gains calculation, and income classification — so your application gets clean numbers instead of raw ledger entries. The first supported jurisdiction is Germany, with Coinbase as the first supported exchange.
+
+## What you can build with TaxMaxi
+
+TaxMaxi exposes three integration surfaces:
+
+- **REST API** — call endpoints directly to create sources, trigger syncs, and retrieve tax summaries. The base URL is `https://api.taxmaxi.com` and the OpenAPI spec is available at `https://api.taxmaxi.com/openapi.json`.
+- **JavaScript SDK** — a typed Effect-based client that wraps the REST API. Install it from npm and authenticate with a Bearer token.
+- **CLI** — the `tax` command runs the full Coinbase workflow from your terminal. Install it globally with `npm install -g tax` and run `tax coinbase` to connect, sync, and calculate taxes in one step.
+
+## Who TaxMaxi is for
+
+TaxMaxi is designed for teams and individuals who need tax data as structured output, not a PDF:
+
+- **Fintechs and exchanges** that need to surface tax liability data inside their own product
+- **Neobanks and wallets** that want to offer tax reporting as a feature
+- **AI agents** that require deterministic tax logic as part of a broader financial workflow
+- **Developers** who want to automate crypto tax calculation without manual tools
+
+## Supported integrations
+
+| Area | Support |
+|---|---|
+| Jurisdiction | Germany (FIFO capital gains + income) |
+| Exchange | Coinbase (via OAuth) |
+| Onchain | Any wallet address (Solana) |
+
+<CardGroup cols={2}>
+  <Card title="Quickstart" icon="rocket" href="/quickstart">
+    Make your first API call and retrieve a tax summary in minutes.
+  </Card>
+  <Card title="Authentication" icon="lock" href="/authentication">
+    Register, log in, and attach a Bearer token to your requests.
+  </Card>
+  <Card title="API reference" icon="code" href="https://api.taxmaxi.com/openapi.json">
+    Browse the full OpenAPI specification for all endpoints.
+  </Card>
+  <Card title="CLI" icon="terminal" href="/cli/overview">
+    Run the full Coinbase workflow from your terminal with the `tax` command.
+  </Card>
+</CardGroup>

@@ -1,0 +1,132 @@
+---
+title: "Coinbase Workflow: Connect, Sync, and Calculate"
+description: "Use `tax coinbase` to run the full Coinbase workflow in one command, or run each subcommand independently to connect, sync, replay, and calculate taxes."
+---
+
+The `tax coinbase` command runs the complete Coinbase tax workflow in a single step: it connects your Coinbase account via OAuth, syncs your transaction records into TaxMaxi, and computes a German tax summary for the selected year. You can also run each step independently if you want finer control — for example, to re-run only the calculation after changing a tax year, or to replay normalization without fetching data from Coinbase again.
+
+<Note>
+  You need to complete the OAuth flow at least once before you can sync or calculate. Run `tax coinbase connect` or `tax coinbase` to authenticate. Your session is cached locally at `~/.config/tax/session.json` and reused on subsequent runs.
+</Note>
+
+## Full workflow
+
+Run the entire connect → sync → calculate sequence with one command:
+
+```bash
+tax coinbase
+```
+
+To target a specific tax year:
+
+```bash
+tax coinbase --year 2024
+```
+
+The command defaults to the current calendar year when `--year` is omitted.
+
+## Subcommands
+
+### Connect
+
+`tax coinbase connect` authenticates your Coinbase account using OAuth. It opens your browser at the Coinbase authorization URL, polls for completion every 2 seconds, and saves the session to `~/.config/tax/session.json` when the flow succeeds. The timeout for the browser authorization step is 5 minutes.
+
+```bash
+tax coinbase connect
+```
+
+If a valid local session already exists, the connect step is skipped automatically. Use `--force` to re-authenticate regardless:
+
+```bash
+tax coinbase connect --force
+```
+
+If you are running the CLI in a headless environment, pass `--no-browser` to print the authorization URL instead of opening it:
+
+```bash
+tax coinbase connect --no-browser
+```
+
+### Sync
+
+`tax coinbase sync` fetches your Coinbase transaction records and imports them into TaxMaxi. It polls for job completion every 2 seconds with a 10-minute timeout.
+
+```bash
+tax coinbase sync
+```
+
+### Replay
+
+`tax coinbase replay` resets derived data and reruns normalization from the cached raw Coinbase records that were imported during the last sync. It does not re-fetch data from Coinbase. Use this command when TaxMaxi's normalization logic has been updated and you want to recompute without waiting for a full sync.
+
+```bash
+tax coinbase replay
+```
+
+### Calculate
+
+`tax coinbase calculate` computes a German tax summary for the specified year from your synced records. Pass `--year` to target a specific tax year:
+
+```bash
+tax coinbase calculate --year 2024
+```
+
+<Tip>
+  You must run `tax coinbase sync` (or `tax coinbase replay`) before `calculate`. The calculation is based on whatever records are currently stored in TaxMaxi for your Coinbase source.
+</Tip>
+
+## Step-by-step: first-time setup
+
+<Steps>
+  <Step title="Install the CLI">
+    ```bash
+    npm install -g tax
+    ```
+  </Step>
+  <Step title="Connect your Coinbase account">
+    ```bash
+    tax coinbase connect
+    ```
+    Your browser opens the Coinbase OAuth authorization page. After you approve access, the CLI saves your session to `~/.config/tax/session.json`.
+  </Step>
+  <Step title="Sync your records">
+    ```bash
+    tax coinbase sync
+    ```
+    The CLI imports your Coinbase transaction history into TaxMaxi. This may take a few minutes depending on the number of records.
+  </Step>
+  <Step title="Calculate your taxes">
+    ```bash
+    tax coinbase calculate --year 2024
+    ```
+    The CLI prints your German tax summary: taxable gains, taxable losses, tax-free gains, and income total.
+  </Step>
+</Steps>
+
+## JSON output
+
+Pass `--json` to any command to receive machine-readable output. Each stage emits a separate JSON object. This is useful for scripting, logging, or feeding results into other tools.
+
+```bash
+tax coinbase --year 2024 --json
+```
+
+Example output for the full workflow:
+
+```json
+{ "stage": "connect_skipped", "reason": "existing_session_valid", "userId": "usr_abc123" }
+{ "stage": "sync_completed", "sourceId": "src_xyz", "jobId": "job_456", "importedRecords": 312, "normalizedRecords": 308, "failedRecords": 4 }
+{ "stage": "workflow_completed", "year": 2024, "currency": "EUR", "importedRecords": 312, "failedRecords": 4, "taxableGains": 4200.50, "taxableLosses": 800.00, "taxFreeGains": 1100.00, "incomeTotal": 95.20 }
+```
+
+### JSON stage reference
+
+| Stage | Emitted by | Key fields |
+|---|---|---|
+| `connect_skipped` | `connect` | `reason`, `userId` |
+| `connect_started` | `connect` | `sessionId`, `connectUrl` |
+| `connect_completed` | `connect` | `userId`, `expiresAt` |
+| `sync_completed` | `sync` | `importedRecords`, `normalizedRecords`, `failedRecords` |
+| `replay_completed` | `replay` | `importedRecords`, `normalizedRecords`, `failedRecords` |
+| `calculate_completed` | `calculate` | `year`, `currency`, `taxableGains`, `taxableLosses`, `taxFreeGains`, `incomeTotal` |
+| `workflow_completed` | `coinbase` (full) | All fields combined |

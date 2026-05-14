@@ -1,0 +1,135 @@
+---
+title: "Log in to your account — TaxMaxi Auth API"
+description: "Authenticate with TaxMaxi using email and password or an OAuth code. Receive a session token to use on all protected API endpoints."
+---
+
+`POST /auth/login` accepts two login modes in a single endpoint, selected by the `provider` field. For the **local** provider you supply an email and password directly. For OAuth providers such as **Coinbase**, you supply the `code` and `state` values your application received from the OAuth callback — these are exchanged for a session token server-side. In both cases, a successful response includes a `token` that you pass as `Authorization: Bearer <token>` on all subsequent authenticated requests.
+
+## POST /auth/login
+
+Authenticates a user and returns a session token.
+
+### Request body
+
+The shape of the `credentials` object depends on the `provider` you select.
+
+<Tabs>
+  <Tab title="Local (email + password)">
+    <ParamField body="provider" type="string" required>
+      Must be `"local"`.
+    </ParamField>
+
+    <ParamField body="credentials" type="object" required>
+      <Expandable title="credentials properties" defaultOpen>
+        <ParamField body="email" type="string" required>
+          The email address registered to the account.
+        </ParamField>
+        <ParamField body="password" type="string" required>
+          The account password.
+        </ParamField>
+      </Expandable>
+    </ParamField>
+  </Tab>
+  <Tab title="OAuth (e.g. Coinbase)">
+    <ParamField body="provider" type="string" required>
+      The OAuth provider name, e.g. `"coinbase"`.
+    </ParamField>
+
+    <ParamField body="credentials" type="object" required>
+      <Expandable title="credentials properties" defaultOpen>
+        <ParamField body="code" type="string" required>
+          The authorization code returned by the OAuth provider in the callback.
+        </ParamField>
+        <ParamField body="state" type="string" required>
+          The state parameter from the OAuth callback, used to validate the flow.
+        </ParamField>
+      </Expandable>
+    </ParamField>
+  </Tab>
+</Tabs>
+
+### Response — 200 OK
+
+<ResponseField name="token" type="string" required>
+  Your session token. Pass this as `Authorization: Bearer <token>` on all protected requests.
+</ResponseField>
+
+<ResponseField name="user" type="object" required>
+  <Expandable title="user properties">
+    <ResponseField name="id" type="string" required>
+      The unique identifier for the user.
+    </ResponseField>
+    <ResponseField name="email" type="string" required>
+      The user's email address.
+    </ResponseField>
+    <ResponseField name="displayName" type="string">
+      The user's display name, if set.
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+<ResponseField name="provider" type="string" required>
+  The provider used to authenticate, e.g. `"local"` or `"coinbase"`.
+</ResponseField>
+
+<ResponseField name="expiresAt" type="string" required>
+  ISO 8601 timestamp indicating when the session token expires. Refresh before this time using `POST /auth/refresh`.
+</ResponseField>
+
+### Errors
+
+| Status | Error | Description |
+|--------|-------|-------------|
+| 400 | `AuthValidationError` | A required field is missing or malformed. The `field` property identifies which field failed. |
+| 400 | `OAuthStateInvalidError` | The `state` parameter does not match the expected value. Restart the OAuth flow. |
+| 401 | `AuthUnauthorizedError` | The email or password is incorrect. |
+| 401 | `ProviderAuthError` | The OAuth provider rejected the authorization code. The `provider` and `reason` fields give more detail. |
+| 403 | `EmailVerificationRequiredError` | Credentials are valid but the email address has not been verified yet. The `email` field confirms the address. Complete verification with `POST /auth/verify-email` before logging in. |
+| 404 | `ProviderNotFoundError` | The specified provider is not enabled. The `provider` field confirms which one was requested. |
+
+<CodeGroup>
+
+```bash Local login
+curl --request POST \
+  --url https://api.taxmaxi.com/auth/login \
+  --header 'Content-Type: application/json' \
+  --data '{
+    "provider": "local",
+    "credentials": {
+      "email": "you@example.com",
+      "password": "kNmGP3sW_ygVLdcNVbxU"
+    }
+  }'
+```
+
+```bash OAuth login (Coinbase)
+curl --request POST \
+  --url https://api.taxmaxi.com/auth/login \
+  --header 'Content-Type: application/json' \
+  --data '{
+    "provider": "coinbase",
+    "credentials": {
+      "code": "AUTH_CODE_FROM_CALLBACK",
+      "state": "STATE_FROM_AUTHORIZE"
+    }
+  }'
+```
+
+</CodeGroup>
+
+```json Response
+{
+  "token": "sess_01HXYZ...",
+  "user": {
+    "id": "usr_01HXYZ...",
+    "email": "you@example.com",
+    "displayName": "Max Mustermann"
+  },
+  "provider": "local",
+  "expiresAt": "2026-06-14T10:00:00.000Z"
+}
+```
+
+<Info>
+  Store the `token` securely. All protected endpoints — including `GET /auth/me`, `POST /auth/refresh`, and every Sources API call — require it in the `Authorization` header.
+</Info>

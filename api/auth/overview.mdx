@@ -1,0 +1,61 @@
+---
+title: "Authentication API: register, login, OAuth, sessions"
+description: "Learn how TaxMaxi authentication works: register an account, log in with email/password or OAuth, and manage your session using bearer tokens."
+---
+
+The TaxMaxi Auth API gives you everything you need to create accounts, log in, and manage sessions. All authenticated endpoints accept a bearer token you obtain at login — pass it as `Authorization: Bearer <token>` on every request that requires authentication. Two login paths are available: the **local** provider (email and password) and **OAuth** providers such as Coinbase. You can link multiple providers to a single account and unlink them any time, as long as at least one remains.
+
+## Base URL
+
+```
+https://api.taxmaxi.com
+```
+
+All auth endpoints are under the `/auth` prefix.
+
+## Authentication model
+
+After a successful login or OAuth callback, the API returns a session `token`. Include this token in the `Authorization` header of every protected request:
+
+```
+Authorization: Bearer <token>
+```
+
+Tokens expire at the time indicated by `expiresAt`. Use `POST /auth/refresh` to extend your session before it expires. To invalidate a token immediately, call `POST /auth/logout`.
+
+## Endpoint reference
+
+| Method | Path | Auth required | Description |
+|--------|------|:---:|-------------|
+| `GET` | `/auth/providers` | No | List all enabled authentication providers |
+| `POST` | `/auth/register` | No | Create a new local account |
+| `POST` | `/auth/verify-email` | No | Submit an email verification code |
+| `POST` | `/auth/resend-verification` | No | Resend the verification code email |
+| `POST` | `/auth/login` | No | Log in with email/password or OAuth code |
+| `GET` | `/auth/authorize/:provider` | No | Get the OAuth authorization URL |
+| `GET` | `/auth/callback/:provider` | No | Handle the OAuth provider callback |
+| `GET` | `/auth/oauth/:id` | No | Poll an OAuth session for completion |
+| `GET` | `/auth/me` | Yes | Get the current user and linked identities |
+| `PUT` | `/auth/me` | Yes | Update your display name |
+| `POST` | `/auth/refresh` | Yes | Get a new session token |
+| `POST` | `/auth/logout` | Yes | Invalidate the current session |
+| `POST` | `/auth/change-password` | Yes | Change your password (local accounts only) |
+| `POST` | `/auth/link/:provider` | Yes | Initiate linking an additional provider |
+| `DELETE` | `/auth/identities/:identityId` | Yes | Unlink a provider identity |
+
+## Pages in this section
+
+<CardGroup cols={2}>
+  <Card title="Register" icon="user-plus" href="/api/auth/register">
+    Create a local account and complete email verification.
+  </Card>
+  <Card title="Login" icon="key" href="/api/auth/login">
+    Authenticate with email/password or an OAuth authorization code.
+  </Card>
+  <Card title="OAuth" icon="arrow-right-arrow-left" href="/api/auth/oauth">
+    Run the full OAuth flow to log in or link a Coinbase account.
+  </Card>
+  <Card title="Session" icon="circle-user" href="/api/auth/session">
+    Manage your session: refresh tokens, update your profile, and log out.
+  </Card>
+</CardGroup>

@@ -1,0 +1,42 @@
+---
+title: "Legal References API: German crypto tax citations"
+description: "Retrieve clause-level German crypto tax citations by transaction type or natural language question. Designed for product explainability and AI grounding."
+---
+
+The TaxMaxi Legal References API gives you deterministic, clause-level citations from the German crypto tax ruleset. Instead of generating explanations from scratch, your product or AI agent can retrieve the exact statutory text that governs a given transaction type or answers a specific tax question. Every response is grounded in the configured ruleset and includes full source metadata — law title, authority, and a direct URL to the source where available. These endpoints do not require authentication.
+
+## Base URL
+
+```
+https://api.taxmaxi.com
+```
+
+All legal reference endpoints are under the `/v1/legal` prefix.
+
+## Endpoint reference
+
+| Method | Path | Auth required | Description |
+|--------|------|:---:|-------------|
+| `POST` | `/v1/legal/references/transaction-type` | No | Return legal rules and citations for a specific transaction type |
+| `POST` | `/v1/legal/references/question` | No | Return ranked statutory clauses that answer a natural language question |
+
+## Use cases
+
+**Product explainability** — When you display a tax event to a user, attach a "Why is this taxed this way?" breakdown by calling the transaction-type endpoint. The response gives you rule titles, descriptions, and the exact clause text from German law that determines the outcome.
+
+**AI agent grounding** — Before an AI agent answers a user's tax question, fetch relevant clauses from the question endpoint and include them in the prompt context. This keeps responses anchored in actual statute text rather than model knowledge, and the `insufficiencyText` field signals when the ruleset does not have enough information to answer reliably.
+
+## Pages in this section
+
+<CardGroup cols={2}>
+  <Card title="Transaction type" icon="arrow-right-arrow-left" href="/api/legal/transaction-type">
+    Look up the legal rules and statutory citations that apply to a specific transaction type.
+  </Card>
+  <Card title="Question" icon="circle-question" href="/api/legal/question">
+    Ask a natural language tax question and get ranked clause citations from German law.
+  </Card>
+</CardGroup>
+
+<Note>
+  The Legal References API is designed to support product explainability and AI agent grounding. The citations it returns are drawn from the configured German tax ruleset and reflect the law as encoded at the time of the active ruleset version. This is not a substitute for professional tax advice.
+</Note>

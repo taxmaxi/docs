@@ -1,0 +1,86 @@
+---
+title: "Tax Calculation: FIFO gains, losses, and income"
+description: "Tax calculation runs FIFO-based capital gains and income analysis on a synced source. Learn what each output field means and how to interpret results."
+---
+
+Tax calculation is the final step in the TaxMaxi workflow. Once a source has a completed sync, you can request a structured tax summary for any supported year and jurisdiction. TaxMaxi applies FIFO (First In, First Out) accounting to determine cost basis and holding periods, then classifies each disposal and income event according to the rules of the requested jurisdiction. The result is a deterministic, machine-readable summary that covers capital gains, losses, and income totals.
+
+## Triggering a calculation
+
+Send a `POST` request to `/v1/sources/:sourceId/tax` with the target `year` and `jurisdiction`.
+
+```bash
+curl -X POST https://api.taxmaxi.com/v1/sources/src_01j.../tax \
+  -H "Authorization: Bearer <token>" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "year": 2024,
+    "jurisdiction": "germany"
+  }'
+```
+
+```json
+{
+  "year": 2024,
+  "currency": "EUR",
+  "taxableGains": 4250.00,
+  "taxableLosses": 800.00,
+  "taxFreeGains": 12000.00,
+  "incomeTotal": 320.00
+}
+```
+
+## Request fields
+
+| Field | Type | Description |
+| --- | --- | --- |
+| `year` | integer | The tax year to calculate. Must be between 1970 and the current year. |
+| `jurisdiction` | string | The tax jurisdiction to apply. Currently only `"germany"` is supported. |
+
+## Response fields
+
+| Field | Description |
+| --- | --- |
+| `year` | The tax year this summary covers. |
+| `currency` | The reporting currency for all monetary values (e.g. `"EUR"`). |
+| `taxableGains` | Net gains from disposals of assets held for less than one year. |
+| `taxableLosses` | Net losses from disposals of assets held for less than one year. |
+| `taxFreeGains` | Gains from disposals of assets held for more than one year. Tax-free under German law. |
+| `incomeTotal` | Total income from staking rewards, airdrops, and other income-type events. |
+
+## How FIFO works
+
+FIFO determines which specific units of an asset are considered sold when you dispose of crypto. The units you acquired first are treated as sold first. This matters for tax purposes because the holding period — and therefore whether a gain is taxable or tax-free — depends on when the specific units were acquired.
+
+For example, if you bought 1 ETH in January 2022 and 1 ETH in January 2024, then sold 1 ETH in February 2024, FIFO treats the January 2022 lot as the one sold. That lot has been held for over two years, so under German law the gain is tax-free.
+
+## Taxable vs. tax-free gains
+
+TaxMaxi separates gains into two buckets based on holding period:
+
+- **`taxableGains`** — gains from assets disposed of within one year of acquisition. These are subject to income tax in Germany.
+- **`taxFreeGains`** — gains from assets held for more than one year. Under §23 EStG, these are exempt from tax in Germany.
+
+Both fields reflect the net gain or loss from qualifying disposals during the requested year. `taxableLosses` captures net losses from short-term disposals separately, since losses may be deductible against gains.
+
+## Income events
+
+`incomeTotal` covers transaction types that are treated as income rather than capital gains, regardless of how long the asset was held afterward. This includes:
+
+- Staking rewards
+- Airdrops
+- Other income-classified events
+
+Income is taxed in the year it is received, at the fair market value at the time of receipt.
+
+## Determinism
+
+Tax calculation results are deterministic. Given the same normalized transaction data, the same year, and the same jurisdiction, TaxMaxi will always produce the same output. Running the calculation multiple times on the same source does not modify any state.
+
+<Tip>
+  If you update your source's transactions by running a new sync, re-run the tax calculation to get updated results. The previous calculation is not automatically invalidated.
+</Tip>
+
+<Warning>
+  Tax calculation requires a completed sync. If you call the tax endpoint before a sync has completed, the API will return an error. See [Sync jobs](/concepts/sync-jobs) for how to run and poll a sync to completion.
+</Warning>

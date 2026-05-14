@@ -1,0 +1,64 @@
+---
+title: "TaxMaxi CLI: Install and Command Overview"
+description: "The TaxMaxi CLI lets you connect Coinbase via OAuth, sync transactions, and compute German tax summaries from your terminal or automation pipeline."
+---
+
+The TaxMaxi CLI gives you a `tax` command you can run from any terminal. It is built for individuals who want to compute their crypto taxes without touching a UI, and for automation pipelines and AI agents that need machine-readable tax output. The CLI calls the same TaxMaxi API that developers integrate directly, so everything you do through it is fully reproducible via the REST API or JavaScript SDK.
+
+## Installation
+
+Install the CLI globally from npm:
+
+```bash
+npm install -g tax
+```
+
+Verify the installation succeeded:
+
+```bash
+tax --version
+```
+
+## Available commands
+
+<CardGroup cols={2}>
+  <Card title="tax coinbase" icon="rotate" href="/cli/coinbase">
+    Run the full Coinbase workflow: connect via OAuth, sync transactions, and compute your German tax summary — in one command.
+  </Card>
+  <Card title="tax coinbase connect" icon="link" href="/cli/coinbase">
+    Authenticate your Coinbase account via OAuth. The session is cached locally so subsequent runs skip re-auth automatically.
+  </Card>
+  <Card title="tax coinbase sync" icon="arrows-rotate" href="/cli/coinbase">
+    Sync your Coinbase transaction records into TaxMaxi after connecting.
+  </Card>
+  <Card title="tax coinbase replay" icon="clock-rotate-left" href="/cli/coinbase">
+    Rebuild normalized records from cached raw Coinbase data without re-fetching from Coinbase.
+  </Card>
+  <Card title="tax coinbase calculate" icon="calculator" href="/cli/coinbase">
+    Compute a German tax summary for a specific year from your synced records.
+  </Card>
+  <Card title="Global flags" icon="flag" href="/cli/flags">
+    Use `--json`, `--no-browser`, `--force`, and `--year` to control CLI behaviour and enable scripting.
+  </Card>
+</CardGroup>
+
+## Command reference
+
+| Command | Description |
+|---|---|
+| `tax coinbase` | Full workflow: connect → sync → calculate |
+| `tax coinbase connect` | OAuth connect, caches session to `~/.config/tax/session.json` |
+| `tax coinbase sync` | Sync Coinbase records into TaxMaxi |
+| `tax coinbase replay` | Rebuild from cached raw records without re-fetching |
+| `tax coinbase calculate --year <YYYY>` | Compute German tax summary for a given year |
+
+## Next steps
+
+<CardGroup cols={2}>
+  <Card title="Coinbase workflow" icon="rotate" href="/cli/coinbase">
+    Step-by-step guide to running the Coinbase connect, sync, and calculate commands.
+  </Card>
+  <Card title="Flags reference" icon="flag" href="/cli/flags">
+    Full reference for all CLI flags, including scripting examples with `--json`.
+  </Card>
+</CardGroup>

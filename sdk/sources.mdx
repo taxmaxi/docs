@@ -1,0 +1,178 @@
+---
+title: "Working with sources using the JavaScript SDK"
+description: "List sources, start and poll sync jobs, replay syncs, and compute tax summaries using the TaxMaxi JavaScript SDK's sources resource."
+---
+
+A source represents a connected exchange account or onchain wallet. The `client.sources` resource exposes methods to list your sources, trigger and monitor sync jobs that import transactions, and compute a tax summary once a sync is complete. All methods return Promises and throw `TaxMaxiError` on failure — see [Error handling](/sdk/error-handling) for details.
+
+## List sources
+
+Retrieve all sources connected to the authenticated account:
+
+```typescript
+import { TaxMaxi } from "taxmaxi"
+
+const client = new TaxMaxi({ apiKey: "your-session-token" })
+
+const { sources } = await client.sources.list()
+
+for (const source of sources) {
+  console.log(source.id, source.provider)
+}
+```
+
+The response is a `SourceList` object with a `sources` array. Each element is a `Source` describing a single connected account.
+
+## Start a sync job
+
+Trigger a new sync job for a source. The sync imports raw transactions from the provider and normalizes them into TaxMaxi's internal format:
+
+```typescript
+const { jobId } = await client.sources.startSync({ sourceId: "src_abc123" })
+console.log("Sync started, job ID:", jobId)
+```
+
+`startSync` returns a `SourceSyncStart` object containing the `jobId` you use to poll for status.
+
+## Poll sync job status
+
+Sync jobs run asynchronously. Poll `getSyncJob` until the `status` field reaches a terminal value:
+
+```typescript
+const job = await client.sources.getSyncJob({
+  sourceId: "src_abc123",
+  jobId: "job_xyz789",
+})
+
+console.log(job.status) // "queued" | "running" | "completed" | "failed"
+```
+
+The `status` field follows this lifecycle:
+
+| Status | Meaning |
+|---|---|
+| `"queued"` | The job is waiting for a worker to pick it up |
+| `"running"` | The worker is actively importing and normalizing records |
+| `"completed"` | All records were processed successfully |
+| `"failed"` | The job encountered an unrecoverable error |
+
+A `SourceSyncJob` response contains:
+
+```typescript
+type SourceSyncJob = {
+  sourceId: string
+  jobId: string
+  status: "queued" | "running" | "completed" | "failed"
+  importedRecords: number
+  normalizedRecords: number
+  failedRecords: number
+  message: string | undefined
+}
+```
+
+## Replay a sync
+
+To rebuild normalized data from the raw records already cached from the last sync — without re-fetching from the exchange — use `replaySync`. This is useful when normalization logic has been updated and you want the latest results applied to your existing data. The parameters and return type are identical to `startSync`:
+
+```typescript
+const { jobId } = await client.sources.replaySync({ sourceId: "src_abc123" })
+```
+
+<Note>
+  Replay does not contact the exchange provider. It only reprocesses the raw records cached during the most recent sync. To fetch new activity from the provider, use `startSync` instead.
+</Note>
+
+## Calculate tax
+
+Once a sync has completed, compute the tax summary for a given year and jurisdiction:
+
+```typescript
+const tax = await client.sources.calculateTax({
+  sourceId: "src_abc123",
+  year: 2024,
+  jurisdiction: "germany",
+})
+
+console.log(tax.taxableGains)
+console.log(tax.taxableLosses)
+```
+
+The response is a `TaxCalculation` object:
+
+```typescript
+type TaxCalculation = {
+  year: number
+  currency: string
+  taxableGains: number
+  taxableLosses: number
+  taxFreeGains: number
+  incomeTotal: number
+}
+```
+
+<Note>
+  Germany (`"germany"`) is the first supported jurisdiction. Tax figures use FIFO-based capital gains calculation aligned with current German tax law.
+</Note>
+
+## Complete example: list → sync → poll → calculate
+
+The following example puts all the pieces together: it picks the first available source, starts a sync, polls until the job finishes, then prints the tax summary.
+
+```typescript
+import { TaxMaxi } from "taxmaxi"
+import type { SourceSyncJob } from "taxmaxi"
+
+const client = new TaxMaxi({ apiKey: "your-session-token" })
+
+async function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms))
+}
+
+async function waitForSync(sourceId: string, jobId: string): Promise<SourceSyncJob> {
+  while (true) {
+    const job = await client.sources.getSyncJob({ sourceId, jobId })
+
+    if (job.status === "completed" || job.status === "failed") {
+      return job
+    }
+
+    console.log(`Sync ${job.status}, waiting...`)
+    await sleep(3000)
+  }
+}
+
+async function main(): Promise<void> {
+  // 1. Pick the first source
+  const { sources } = await client.sources.list()
+  if (sources.length === 0) {
+    throw new Error("No sources connected. Add a source first.")
+  }
+  const sourceId = sources[0].id
+
+  // 2. Start a sync
+  const { jobId } = await client.sources.startSync({ sourceId })
+  console.log("Sync started:", jobId)
+
+  // 3. Poll until done
+  const job = await waitForSync(sourceId, jobId)
+  if (job.status === "failed") {
+    throw new Error(`Sync failed: ${job.message ?? "unknown error"}`)
+  }
+  console.log(`Imported ${job.importedRecords} records`)
+
+  // 4. Calculate tax
+  const tax = await client.sources.calculateTax({
+    sourceId,
+    year: 2024,
+    jurisdiction: "germany",
+  })
+
+  console.log("Tax summary for 2024:")
+  console.log("  Taxable gains:  ", tax.taxableGains, tax.currency)
+  console.log("  Taxable losses: ", tax.taxableLosses, tax.currency)
+  console.log("  Tax-free gains: ", tax.taxFreeGains, tax.currency)
+  console.log("  Income total:   ", tax.incomeTotal, tax.currency)
+}
+
+main().catch(console.error)
+```

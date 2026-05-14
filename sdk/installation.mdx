@@ -1,0 +1,102 @@
+---
+title: "Installing and configuring the JavaScript SDK"
+description: "Install the taxmaxi package and create a client using an API key, a browser session cookie, or server-side cookie forwarding for SSR frameworks."
+---
+
+The SDK is distributed as the `taxmaxi` npm package and ships full TypeScript type definitions — no separate `@types` package is needed. Choose the installation command that matches your package manager, then follow the configuration steps for your runtime.
+
+## Install the package
+
+<CodeGroup>
+
+```bash npm
+npm install taxmaxi
+```
+
+```bash yarn
+yarn add taxmaxi
+```
+
+```bash pnpm
+pnpm add taxmaxi
+```
+
+</CodeGroup>
+
+## Configure your client
+
+The `TaxMaxi` class is the single entry point for all SDK operations. How you construct it depends on how your application authenticates with the TaxMaxi API.
+
+<Tabs>
+  <Tab title="API key">
+    Use `new TaxMaxi({ apiKey })` when your code runs on a server or in a script and you hold a session token directly. The `apiKey` is the session token returned by `POST /auth/login` — pass it as a bearer token.
+
+    ```typescript
+    import { TaxMaxi } from "taxmaxi"
+
+    const client = new TaxMaxi({ apiKey: "your-session-token" })
+    ```
+
+    <Note>
+      The `apiKey` option accepts the session token returned by `POST /auth/login`, not a long-lived API key. Treat it like a password and keep it out of source control.
+    </Note>
+  </Tab>
+  <Tab title="Browser session">
+    Use `TaxMaxi.fromBrowserSession()` in browser applications that authenticate through your own login UI. The SDK sends requests with `credentials: "include"` so session cookies are forwarded automatically — no token management required.
+
+    ```typescript
+    import { TaxMaxi } from "taxmaxi"
+
+    const client = TaxMaxi.fromBrowserSession()
+    ```
+
+    You can also supply a custom `baseUrl` or additional `headers` if needed:
+
+    ```typescript
+    const client = TaxMaxi.fromBrowserSession({
+      baseUrl: "https://api.taxmaxi.com",
+    })
+    ```
+  </Tab>
+  <Tab title="Server-side (SSR)">
+    Use `TaxMaxi.fromRequest()` in server-side rendering contexts such as Next.js route handlers or SvelteKit load functions. Pass the raw `Cookie` header from the incoming request so the SDK can forward it to the TaxMaxi API on behalf of the user.
+
+    ```typescript
+    import { TaxMaxi } from "taxmaxi"
+
+    // Example: Next.js App Router route handler
+    export async function GET(request: Request) {
+      const client = TaxMaxi.fromRequest({
+        cookieHeader: request.headers.get("cookie") ?? "",
+      })
+
+      const sources = await client.sources.list()
+      return Response.json(sources)
+    }
+    ```
+  </Tab>
+</Tabs>
+
+## Constructor options
+
+When using `new TaxMaxi(options)`, the constructor accepts a `TaxMaxiOptions` object:
+
+| Option | Type | Required | Description |
+|---|---|---|---|
+| `apiKey` | `string` | Yes | Session token used as a bearer token on every request |
+| `baseUrl` | `string \| URL` | No | Override the API base URL. Defaults to `https://api.taxmaxi.com` |
+| `fetch` | `typeof globalThis.fetch` | No | Custom `fetch` implementation — useful for testing or edge runtimes |
+| `headers` | `TaxMaxiHeadersProvider` | No | Additional headers to attach to every request |
+
+## TypeScript support
+
+The SDK is written in TypeScript and all types are included in the package. No additional configuration is required. Import types directly alongside values:
+
+```typescript
+import { TaxMaxi } from "taxmaxi"
+import type { TaxCalculation, SourceSyncJob } from "taxmaxi"
+```
+
+<Tip>
+  Your editor will surface parameter types, return types, and inline documentation for every SDK method as you type.
+</Tip>

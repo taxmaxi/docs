@@ -1,0 +1,47 @@
+---
+title: "TaxMaxi Documentation"
+description: "TaxMaxi is an API-first crypto tax platform. Connect exchange accounts, sync transactions, and compute tax-ready summaries via REST API, CLI, or JavaScript SDK."
+---
+
+TaxMaxi turns raw exchange and onchain activity into machine-readable, tax-ready events. Whether you're a fintech integrating compliance into your product, a developer building an AI agent that needs deterministic tax logic, or an individual who wants to automate their crypto taxes from the terminal — TaxMaxi gives you a clean REST API, a JavaScript SDK, and a CLI to get the job done.
+
+The first supported jurisdiction is Germany, with FIFO-based capital gains and income calculation aligned with current German tax law.
+
+<CardGroup cols={2}>
+  <Card title="Quick Start" icon="rocket" href="/quickstart">
+    Make your first API call and get a tax summary in minutes.
+  </Card>
+  <Card title="Authentication" icon="key" href="/authentication">
+    Register, log in, and authenticate your API requests.
+  </Card>
+  <Card title="CLI" icon="terminal" href="/cli/overview">
+    Install the `tax` CLI and run the full Coinbase workflow from your terminal.
+  </Card>
+  <Card title="JavaScript SDK" icon="js" href="/sdk/overview">
+    Integrate TaxMaxi into your TypeScript or JavaScript application.
+  </Card>
+  <Card title="Sources API" icon="database" href="/api/sources/overview">
+    Sync exchange accounts and onchain wallets, then compute taxes.
+  </Card>
+  <Card title="Core Concepts" icon="book" href="/concepts/sources">
+    Understand sources, sync jobs, and how tax calculation works.
+  </Card>
+</CardGroup>
+
+## Get started in three steps
+
+<Steps>
+  <Step title="Create an account">
+    Register with your email and password via `POST /auth/register`, or use OAuth with Coinbase. You'll receive a session token to authenticate all subsequent requests.
+  </Step>
+  <Step title="Connect a source">
+    A source is a connected exchange account or onchain wallet. Use the CLI (`tax coinbase`) or the Sources API (`POST /v1/sources`) to connect your first account and trigger a sync.
+  </Step>
+  <Step title="Calculate your taxes">
+    Once a sync completes, call `POST /v1/sources/:sourceId/tax` with the target year and jurisdiction to get a structured tax summary — taxable gains, losses, tax-free gains, and income totals.
+  </Step>
+</Steps>
+
+<Note>
+  TaxMaxi is pre-launch and currently focused on German tax law (jurisdiction: `germany`). Coinbase is the first supported exchange provider.
+</Note>

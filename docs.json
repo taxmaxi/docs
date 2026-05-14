@@ -1,0 +1,89 @@
+{
+  "$schema": "https://mintlify.com/docs.json",
+  "name": "TaxMaxi",
+  "theme": "luma",
+  "colors": {
+    "primary": "#1A7F64"
+  },
+  "navbar": {
+    "primary": {
+      "type": "github",
+      "href": "https://github.com/taxmaxi/taxmaxi"
+    }
+  },
+  "navigation": {
+    "tabs": [
+      {
+        "tab": "Documentation",
+        "groups": [
+          {
+            "group": "Get Started",
+            "pages": [
+              "introduction",
+              "quickstart",
+              "authentication"
+            ]
+          },
+          {
+            "group": "CLI",
+            "pages": [
+              "cli/overview",
+              "cli/coinbase",
+              "cli/flags"
+            ]
+          },
+          {
+            "group": "JavaScript SDK",
+            "pages": [
+              "sdk/overview",
+              "sdk/installation",
+              "sdk/sources",
+              "sdk/error-handling"
+            ]
+          },
+          {
+            "group": "Core Concepts",
+            "pages": [
+              "concepts/sources",
+              "concepts/sync-jobs",
+              "concepts/tax-calculation",
+              "concepts/jurisdictions"
+            ]
+          }
+        ]
+      },
+      {
+        "tab": "API Reference",
+        "groups": [
+          {
+            "group": "Auth",
+            "pages": [
+              "api/auth/overview",
+              "api/auth/register",
+              "api/auth/login",
+              "api/auth/oauth",
+              "api/auth/session"
+            ]
+          },
+          {
+            "group": "Sources",
+            "pages": [
+              "api/sources/overview",
+              "api/sources/create",
+              "api/sources/sync",
+              "api/sources/tax"
+            ]
+          },
+          {
+            "group": "Legal References",
+            "pages": [
+              "api/legal/overview",
+              "api/legal/transaction-type",
+              "api/legal/question"
+            ]
+          }
+        ]
+      }
+    ]
+  }
+}

@@ -1,0 +1,128 @@
+{
+  "projectType": "api-service",
+  "projectName": "TaxMaxi",
+  "projectDescription": "TaxMaxi is an API-first crypto tax infrastructure platform that turns raw exchange and onchain activity into machine-readable, tax-ready events for the German jurisdiction.",
+  "theme": "luma",
+  "primaryColor": "#1A7F64",
+  "lightColor": null,
+  "darkColor": null,
+  "navigation": {
+    "tabs": [
+      {
+        "tab": "Documentation",
+        "groups": [
+          {
+            "group": "Get Started",
+            "pages": [
+              "introduction",
+              "quickstart",
+              "authentication"
+            ]
+          },
+          {
+            "group": "CLI",
+            "pages": [
+              "cli/overview",
+              "cli/coinbase",
+              "cli/flags"
+            ]
+          },
+          {
+            "group": "JavaScript SDK",
+            "pages": [
+              "sdk/overview",
+              "sdk/installation",
+              "sdk/sources",
+              "sdk/error-handling"
+            ]
+          },
+          {
+            "group": "Core Concepts",
+            "pages": [
+              "concepts/sources",
+              "concepts/sync-jobs",
+              "concepts/tax-calculation",
+              "concepts/jurisdictions"
+            ]
+          }
+        ]
+      },
+      {
+        "tab": "API Reference",
+        "groups": [
+          {
+            "group": "Auth",
+            "pages": [
+              "api/auth/overview",
+              "api/auth/register",
+              "api/auth/login",
+              "api/auth/oauth",
+              "api/auth/session"
+            ]
+          },
+          {
+            "group": "Sources",
+            "pages": [
+              "api/sources/overview",
+              "api/sources/create",
+              "api/sources/sync",
+              "api/sources/tax"
+            ]
+          },
+          {
+            "group": "Legal References",
+            "pages": [
+              "api/legal/overview",
+              "api/legal/transaction-type",
+              "api/legal/question"
+            ]
+          }
+        ]
+      }
+    ]
+  },
+  "keyFeatures": [
+    "REST API for crypto tax calculation (German jurisdiction)",
+    "Coinbase OAuth integration with one-command workflow",
+    "Transaction sync, normalization, and FIFO-based tax computation",
+    "CLI tool installable via npm (`npm install -g tax`)",
+    "JavaScript/TypeScript SDK with Promise and Effect interfaces",
+    "Legal reference API for grounding AI agents in statute-backed citations",
+    "Machine-readable JSON output for automation and AI agent integration",
+    "Pollable async sync jobs with status tracking"
+  ],
+  "publicApiSurface": [
+    "GET /auth/providers",
+    "POST /auth/register",
+    "POST /auth/login",
+    "GET /auth/authorize/:provider",
+    "GET /auth/callback/:provider",
+    "GET /auth/oauth/:id",
+    "GET /auth/me",
+    "POST /auth/logout",
+    "POST /auth/refresh",
+    "GET /v1/sources",
+    "POST /v1/sources",
+    "POST /v1/sources/:sourceId/sync",
+    "POST /v1/sources/:sourceId/replay",
+    "GET /v1/sources/:sourceId/jobs/:jobId",
+    "POST /v1/sources/:sourceId/tax",
+    "POST /v1/legal/references/transaction-type",
+    "POST /v1/legal/references/question",
+    "TaxMaxi (SDK class)",
+    "TaxMaxi.fromBrowserSession()",
+    "TaxMaxi.fromRequest()",
+    "taxmaxi.sources.list()",
+    "taxmaxi.sources.startSync()",
+    "taxmaxi.sources.replaySync()",
+    "taxmaxi.sources.getSyncJob()",
+    "taxmaxi.sources.calculateTax()",
+    "taxmaxi.auth.me()",
+    "taxmaxi.auth.logout()",
+    "tax coinbase",
+    "tax coinbase connect",
+    "tax coinbase sync",
+    "tax coinbase replay",
+    "tax coinbase calculate --year <YYYY>"
+  ]
+}

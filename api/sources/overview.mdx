@@ -1,0 +1,63 @@
+---
+title: "Sources API: create, sync, and calculate tax"
+description: "Learn how the TaxMaxi Sources API works: add a wallet as a source, sync its transactions, and calculate taxes for a given year and jurisdiction."
+---
+
+The TaxMaxi Sources API lets you connect onchain wallets, sync their transaction history, and run tax calculations against the normalized data. A **source** represents a single wallet address. Once you create a source, you kick off a sync job to import raw transaction records from the blockchain and normalize them into a consistent format. When the sync is complete, you can request a tax calculation for any supported jurisdiction and year. Most endpoints require a bearer token — pass it as `Authorization: Bearer <token>` on every protected request.
+
+## Base URL
+
+```
+https://api.taxmaxi.com
+```
+
+All sources endpoints are under the `/v1` prefix.
+
+## Authentication
+
+Include your session token in the `Authorization` header on every request that requires authentication:
+
+```
+Authorization: Bearer <token>
+```
+
+`POST /v1/sources` is the only endpoint that accepts unauthenticated requests. When you call it without credentials, the API creates an anonymous source and returns a `claim` token you can use to associate that source with an account later.
+
+## Workflow
+
+<Steps>
+  <Step title="Create a source">
+    Call `POST /v1/sources` with a wallet address. Pass `sync: true` to start a sync immediately, or trigger it separately.
+  </Step>
+  <Step title="Sync the source">
+    Call `POST /v1/sources/:sourceId/sync` to import and normalize transactions. Poll `GET /v1/sources/:sourceId/jobs/:jobId` until the job status reaches `completed` or `failed`.
+  </Step>
+  <Step title="Calculate tax">
+    Once the sync is complete, call `POST /v1/sources/:sourceId/tax` with a `year` and `jurisdiction` to get your tax summary.
+  </Step>
+</Steps>
+
+## Endpoint reference
+
+| Method | Path | Auth required | Description |
+|--------|------|:---:|-------------|
+| `GET` | `/v1/sources` | Yes | List all sources for your account |
+| `POST` | `/v1/sources` | No | Create or reuse a source |
+| `POST` | `/v1/sources/:sourceId/sync` | Yes | Start a sync job for a source |
+| `POST` | `/v1/sources/:sourceId/replay` | Yes | Replay normalization from cached raw data |
+| `GET` | `/v1/sources/:sourceId/jobs/:jobId` | Yes | Poll the status of a sync job |
+| `POST` | `/v1/sources/:sourceId/tax` | Yes | Calculate tax for a completed source |
+
+## Pages in this section
+
+<CardGroup cols={2}>
+  <Card title="Create" icon="plus" href="/api/sources/create">
+    List your sources or create a new one from a wallet address.
+  </Card>
+  <Card title="Sync" icon="rotate" href="/api/sources/sync">
+    Start a sync job, replay normalization, and poll job status.
+  </Card>
+  <Card title="Tax" icon="receipt" href="/api/sources/tax">
+    Calculate taxable gains, losses, and income for a source.
+  </Card>
+</CardGroup>

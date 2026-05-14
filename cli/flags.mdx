@@ -1,0 +1,114 @@
+---
+title: "TaxMaxi CLI flags: --json, --no-browser, --force, --year"
+description: "Full reference for all global flags supported by the TaxMaxi CLI: `--json`, `--no-browser`, `--force`, and `--year`, with scripting examples."
+---
+
+The TaxMaxi CLI accepts a set of flags that control authentication behaviour, output format, and tax year targeting. You can combine flags freely — for example, `tax coinbase --json --no-browser --year 2024` runs the full workflow in headless mode with JSON output for a specific year. This page documents every supported flag and explains when to use each one.
+
+## Flags
+
+### `--json`
+
+Switches the CLI from human-readable console output to newline-delimited JSON. Each stage of a command emits its own JSON object as it completes, so you can process output incrementally.
+
+Use `--json` when:
+- you are scripting the CLI and want to parse results programmatically
+- you are running the CLI from a CI pipeline or an AI agent
+- you need structured data to feed into another tool
+
+**Applies to:** all commands
+
+```bash
+tax coinbase --json
+tax coinbase sync --json
+tax coinbase calculate --year 2024 --json
+```
+
+---
+
+### `--no-browser`
+
+Prevents the CLI from automatically opening the Coinbase OAuth authorization URL in your default browser. Instead, the URL is printed to stdout so you can open it manually or copy it to another device.
+
+Use `--no-browser` when:
+- you are running the CLI on a headless server with no display
+- you prefer to open the URL yourself rather than having it launched automatically
+- you are running in a container or SSH session where browser launch would fail
+
+**Applies to:** `tax coinbase`, `tax coinbase connect`
+
+```bash
+tax coinbase connect --no-browser
+```
+
+---
+
+### `--force`
+
+Forces the connect step to run a new OAuth flow even when a valid local session already exists at `~/.config/tax/session.json`. Without this flag, the CLI validates the existing session and skips re-authentication if it is still valid.
+
+Use `--force` when:
+- you want to switch to a different Coinbase account
+- your session appears valid locally but is rejected by the API
+- you want to explicitly refresh your credentials
+
+**Applies to:** `tax coinbase`, `tax coinbase connect`
+
+```bash
+tax coinbase connect --force
+```
+
+---
+
+### `--year <YYYY>`
+
+Sets the tax year for the `calculate` step. Accepts a four-digit integer. When omitted from `tax coinbase` (the full workflow command), it defaults to the current calendar year. The `tax coinbase calculate` subcommand requires `--year` explicitly.
+
+Use `--year` when:
+- you are calculating taxes for a past year (e.g. filing for 2023 or 2024)
+- you are running the full workflow and want to target a year other than the current one
+
+**Applies to:** `tax coinbase`, `tax coinbase calculate`
+
+```bash
+tax coinbase calculate --year 2024
+tax coinbase --year 2023
+```
+
+## Flag compatibility matrix
+
+| Flag | `tax coinbase` | `tax coinbase connect` | `tax coinbase sync` | `tax coinbase replay` | `tax coinbase calculate` |
+|---|:---:|:---:|:---:|:---:|:---:|
+| `--json` | ✓ | ✓ | ✓ | ✓ | ✓ |
+| `--no-browser` | ✓ | ✓ | — | — | — |
+| `--force` | ✓ | ✓ | — | — | — |
+| `--year <YYYY>` | ✓ | — | — | — | ✓ |
+
+## Scripting with `--json`
+
+Because `--json` outputs newline-delimited JSON, you can pipe the CLI into `jq` to extract specific values.
+
+Extract taxable gains from the full workflow:
+
+```bash
+tax coinbase --year 2024 --json \
+  | jq 'select(.stage == "workflow_completed") | .taxableGains'
+```
+
+Extract the number of imported records from a sync:
+
+```bash
+tax coinbase sync --json \
+  | jq 'select(.stage == "sync_completed") | .importedRecords'
+```
+
+Run a headless connect and capture the OAuth URL to open on another device:
+
+```bash
+tax coinbase connect --no-browser --json \
+  | jq -r 'select(.stage == "connect_started") | .connectUrl'
+```
+
+<Tip>
+  Combine `--json` with `--no-browser` and `--force` for fully non-interactive pipelines: `tax coinbase --json --no-browser --force --year 2024`. Print the `connect_started.connectUrl` value to let a human authorize the OAuth flow, then let the rest of the pipeline complete automatically.
+</Tip>

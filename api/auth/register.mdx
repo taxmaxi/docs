@@ -1,0 +1,136 @@
+---
+title: "Register a new account — TaxMaxi Auth API"
+description: "Create a local TaxMaxi account with email and password, verify your address with a code, and resend verification if the code expires."
+---
+
+To create a local account, send your email address, a password of at least eight characters, and an optional display name to `POST /auth/register`. A verification email is sent immediately, and the response tells you which frontend route to navigate to so your user can enter the code. You must verify your email before you can log in — any login attempt with an unverified address returns a `403 EmailVerificationRequiredError`.
+
+## POST /auth/register
+
+Creates a new local user account and starts the email verification flow.
+
+### Request body
+
+<ParamField body="email" type="string" required>
+  The email address for the new account. Must be a valid email format and not already registered.
+</ParamField>
+
+<ParamField body="password" type="string" required>
+  The account password. Must be at least 8 characters. If the password does not meet strength requirements, the response includes a list of unmet `requirements`.
+</ParamField>
+
+<ParamField body="displayName" type="string">
+  An optional display name shown in the user profile. Must be a non-empty string if provided.
+</ParamField>
+
+### Response — 201 Created
+
+<ResponseField name="email" type="string" required>
+  The email address of the newly created account.
+</ResponseField>
+
+<ResponseField name="redirectTo" type="string" required>
+  The frontend route to navigate to so the user can complete email verification (e.g. `/verify-email`).
+</ResponseField>
+
+### Errors
+
+| Status | Error | Description |
+|--------|-------|-------------|
+| 400 | `AuthValidationError` | A required field is missing or has an invalid format. The `field` property identifies which field failed. |
+| 400 | `PasswordWeakError` | The password does not meet strength requirements. The `requirements` array lists each unmet rule. |
+| 409 | `UserExistsError` | An account with this email already exists. The `email` field confirms which address is taken. |
+
+<CodeGroup>
+
+```bash Register
+curl --request POST \
+  --url https://api.taxmaxi.com/auth/register \
+  --header 'Content-Type: application/json' \
+  --data '{
+    "email": "you@example.com",
+    "password": "kNmGP3sW_ygVLdcNVbxU",
+    "displayName": "Max Mustermann"
+  }'
+```
+
+</CodeGroup>
+
+```json Response
+{
+  "email": "you@example.com",
+  "redirectTo": "/verify-email"
+}
+```
+
+---
+
+## POST /auth/verify-email
+
+Submits the verification code sent to the user's email address. On success, the account is marked as verified and a `redirectTo` route is returned so you can navigate the user to their next step (e.g. the login page or dashboard).
+
+### Request body
+
+<ParamField body="code" type="string" required>
+  The verification code from the email. Codes are single-use and expire after a short window.
+</ParamField>
+
+### Response — 200 OK
+
+<ResponseField name="redirectTo" type="string" required>
+  The frontend route to navigate to after verification succeeds (e.g. `/home`).
+</ResponseField>
+
+### Errors
+
+| Status | Error | Description |
+|--------|-------|-------------|
+| 400 | `EmailVerificationFlowMissingError` | The verification session is missing or expired. The user must restart registration. |
+| 400 | `EmailVerificationCodeInvalidError` | The submitted code does not match the expected value. |
+| 400 | `EmailVerificationCodeExpiredError` | The code was valid but has expired. Request a new one with `POST /auth/resend-verification`. |
+
+<CodeGroup>
+
+```bash Verify email
+curl --request POST \
+  --url https://api.taxmaxi.com/auth/verify-email \
+  --header 'Content-Type: application/json' \
+  --data '{
+    "code": "847291"
+  }'
+```
+
+</CodeGroup>
+
+---
+
+## POST /auth/resend-verification
+
+Replaces the pending verification code and resends the email. Use this when a user did not receive the original email or the code has expired.
+
+This endpoint requires no request body — the verification session is tracked server-side. If the session is missing or expired, the user must restart registration.
+
+### Response — 200 OK
+
+<ResponseField name="email" type="string" required>
+  The email address a new verification code was sent to.
+</ResponseField>
+
+<ResponseField name="redirectTo" type="string" required>
+  The frontend route to continue the verification flow (e.g. `/verify-email`).
+</ResponseField>
+
+### Errors
+
+| Status | Error | Description |
+|--------|-------|-------------|
+| 400 | `EmailVerificationFlowMissingError` | No active verification session found. The user must restart registration. |
+
+<CodeGroup>
+
+```bash Resend verification
+curl --request POST \
+  --url https://api.taxmaxi.com/auth/resend-verification
+```
+
+</CodeGroup>

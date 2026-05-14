@@ -1,0 +1,109 @@
+---
+title: "Sync Jobs: Importing and Normalizing Transactions"
+description: "A sync job fetches raw transaction records from a provider and normalizes them into a canonical format. Learn how to start, poll, and replay sync jobs."
+---
+
+A sync job is an asynchronous background task that imports raw transaction records from a connected provider — an exchange or onchain data source — and normalizes them into a structured, categorized format ready for tax calculation. Raw exchange records and onchain events are mapped into typed transaction types that TaxMaxi uses to compute gains, losses, and income. You must complete a sync before you can run a tax calculation on a source.
+
+## Starting a sync
+
+Trigger a sync by posting to `POST /v1/sources/:sourceId/sync`. The API responds immediately with a job record — the sync runs in the background.
+
+```bash
+curl -X POST https://api.taxmaxi.com/v1/sources/src_01j.../sync \
+  -H "Authorization: Bearer <token>"
+```
+
+```json
+{
+  "sourceId": "src_01j...",
+  "jobId": "job_01j...",
+  "status": "queued",
+  "message": null
+}
+```
+
+<Note>
+  If a sync is already running for the source, TaxMaxi returns the active job rather than starting a new one. Check the `status` field to determine whether the returned job is newly started or already in progress.
+</Note>
+
+## Job statuses
+
+A sync job moves through the following states:
+
+| Status | Meaning |
+| --- | --- |
+| `queued` | The job is waiting to be picked up by a worker. |
+| `running` | The job is actively fetching and processing records. |
+| `completed` | All records have been imported and normalized successfully. |
+| `failed` | The job encountered an unrecoverable error. Check `message` for details. |
+
+## Polling for completion
+
+Jobs are asynchronous. Poll `GET /v1/sources/:sourceId/jobs/:jobId` until the status is `completed` or `failed`.
+
+```bash
+curl https://api.taxmaxi.com/v1/sources/src_01j.../jobs/job_01j... \
+  -H "Authorization: Bearer <token>"
+```
+
+```json
+{
+  "sourceId": "src_01j...",
+  "jobId": "job_01j...",
+  "status": "completed",
+  "importedRecords": 342,
+  "normalizedRecords": 340,
+  "failedRecords": 2,
+  "message": null
+}
+```
+
+A reasonable poll interval is every 2 seconds. Jobs typically complete within a few minutes, but large accounts can take longer.
+
+## Record counters
+
+The completed job response includes three counters that describe what happened during processing.
+
+| Field | Meaning |
+| --- | --- |
+| `importedRecords` | Total raw records fetched from the provider. |
+| `normalizedRecords` | Records that were successfully mapped to internal transaction types. |
+| `failedRecords` | Records that could not be normalized. These are skipped, not retried. |
+
+<Tip>
+  A non-zero `failedRecords` count does not cause the job to fail. The job status will still be `completed` if normalization ran to completion. Use `failedRecords` to assess data quality — a high count may indicate unsupported transaction types or provider data issues.
+</Tip>
+
+## Replay
+
+Replay re-runs normalization against the raw records already cached from the last sync, without re-fetching data from the provider. Use it when normalization logic has changed and you want updated results without issuing new API calls to the exchange.
+
+```bash
+curl -X POST https://api.taxmaxi.com/v1/sources/src_01j.../replay \
+  -H "Authorization: Bearer <token>"
+```
+
+Replay returns the same `SourceSyncStartResponse` shape as a regular sync. Poll the job the same way.
+
+From the CLI:
+
+```bash
+tax coinbase replay
+```
+
+<AccordionGroup>
+  <Accordion title="When to use replay vs. sync">
+    Use **sync** when you want to fetch the latest transactions from the exchange — for example, at the start of a new tax year or after new activity has occurred.
+
+    Use **replay** when the raw data is already up to date but normalization rules have changed, or when you want to rebuild derived data after a schema update. Replay is faster than a full sync because it skips the provider fetch step entirely.
+  </Accordion>
+</AccordionGroup>
+
+## What happens after a successful sync
+
+Once a job reaches `completed` status, the source is ready for tax calculation. The normalized transaction records are stored and used as the input to `POST /v1/sources/:sourceId/tax`. See [Tax calculation](/concepts/tax-calculation) for details.
+
+<Warning>
+  If a sync job fails, tax calculation will use data from the most recent successful sync. If no successful sync exists for the source, the tax calculation endpoint will return an error.
+</Warning>

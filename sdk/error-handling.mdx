@@ -1,0 +1,167 @@
+---
+title: "Handling errors from the JavaScript SDK"
+description: "All TaxMaxi SDK methods throw TaxMaxiError on failure. Inspect the status code, error code tag, requestId, and fieldErrors to handle errors precisely."
+---
+
+Every SDK method throws a `TaxMaxiError` when a request fails — whether because of a network problem, an invalid input, an expired session, or a server error. `TaxMaxiError` extends the built-in `Error` class with extra fields that let you branch on the failure type without parsing raw error messages.
+
+## The `TaxMaxiError` class
+
+```typescript
+import type { TaxMaxiError, TaxMaxiFieldError } from "taxmaxi"
+
+class TaxMaxiError extends Error {
+  /** HTTP status code, or 0 for network/connection errors */
+  status: number
+
+  /** Structured error code tag (e.g. "SourceNotFoundError"), or undefined */
+  code: string | undefined
+
+  /** Request ID for support and debugging, or undefined */
+  requestId: string | undefined
+
+  /** Validation field errors, populated on 400 responses */
+  fieldErrors: ReadonlyArray<TaxMaxiFieldError>
+}
+
+type TaxMaxiFieldError = {
+  field?: string
+  message: string
+}
+```
+
+## Status codes
+
+| `status` | Meaning | What to do |
+|---|---|---|
+| `0` | Network or connection error — the request never reached the server | Check connectivity; retry with exponential back-off |
+| `400` | Validation error — the request body or parameters were invalid | Inspect `error.fieldErrors` for per-field messages |
+| `401` | Unauthenticated — the session token is missing, invalid, or expired | Re-authenticate and obtain a new session token |
+| `402` | Payment required — the account has exceeded its quota | Check your plan or contact support |
+| `404` | Resource not found — the source or job ID does not exist | Verify the ID and ensure the resource was created |
+| `500` | Internal server error — something went wrong on the TaxMaxi side | Retry the request; include `error.requestId` in support tickets |
+
+## Basic try/catch pattern
+
+Wrap any SDK call in a try/catch block and narrow to `TaxMaxiError` to access the structured fields:
+
+```typescript
+import { TaxMaxi, TaxMaxiError } from "taxmaxi"
+
+const client = new TaxMaxi({ apiKey: "your-session-token" })
+
+try {
+  const { sources } = await client.sources.list()
+  console.log(sources)
+} catch (error) {
+  if (error instanceof TaxMaxiError) {
+    console.error(`Request failed — status ${error.status}: ${error.message}`)
+
+    if (error.requestId !== undefined) {
+      console.error("Request ID:", error.requestId)
+    }
+  } else {
+    // Re-throw anything that is not a TaxMaxiError
+    throw error
+  }
+}
+```
+
+## Checking the error code
+
+Use `error.code` to branch on specific error types without relying on status codes alone:
+
+```typescript
+import { TaxMaxi, TaxMaxiError } from "taxmaxi"
+
+const client = new TaxMaxi({ apiKey: "your-session-token" })
+
+try {
+  const job = await client.sources.getSyncJob({
+    sourceId: "src_abc123",
+    jobId: "job_xyz789",
+  })
+  console.log(job.status)
+} catch (error) {
+  if (error instanceof TaxMaxiError) {
+    if (error.code === "SourceNotFoundError") {
+      console.error("Source does not exist. Check the sourceId and try again.")
+    } else if (error.status === 401) {
+      console.error("Session expired. Please log in again.")
+    } else {
+      console.error(`Unexpected error (${error.code ?? error.status}):`, error.message)
+    }
+  } else {
+    throw error
+  }
+}
+```
+
+## Extracting field errors
+
+On `400` responses caused by invalid input, the `fieldErrors` array contains one entry per failing field. Each entry has an optional `field` name and a human-readable `message`:
+
+```typescript
+import { TaxMaxi, TaxMaxiError } from "taxmaxi"
+
+const client = new TaxMaxi({ apiKey: "your-session-token" })
+
+try {
+  await client.sources.calculateTax({
+    sourceId: "src_abc123",
+    year: 2024,
+    jurisdiction: "germany",
+  })
+} catch (error) {
+  if (error instanceof TaxMaxiError && error.status === 400) {
+    if (error.fieldErrors.length > 0) {
+      for (const fieldError of error.fieldErrors) {
+        const prefix = fieldError.field !== undefined ? `[${fieldError.field}] ` : ""
+        console.error(`${prefix}${fieldError.message}`)
+      }
+    } else {
+      console.error("Validation failed:", error.message)
+    }
+  } else {
+    throw error
+  }
+}
+```
+
+## Handling network errors
+
+A `status` of `0` means the request never reached the server. This can happen when the device is offline, a DNS lookup fails, or a firewall blocks the connection. Retry these errors with back-off rather than surfacing them immediately:
+
+```typescript
+import { TaxMaxi, TaxMaxiError } from "taxmaxi"
+
+async function withRetry<T>(fn: () => Promise<T>, maxAttempts = 3): Promise<T> {
+  for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+    try {
+      return await fn()
+    } catch (error) {
+      const isNetworkError = error instanceof TaxMaxiError && error.status === 0
+      const isLastAttempt = attempt === maxAttempts
+
+      if (!isNetworkError || isLastAttempt) {
+        throw error
+      }
+
+      const delay = 1000 * 2 ** (attempt - 1)
+      console.warn(`Network error, retrying in ${delay}ms (attempt ${attempt}/${maxAttempts})`)
+      await new Promise((resolve) => setTimeout(resolve, delay))
+    }
+  }
+
+  // This line is unreachable but satisfies TypeScript's control flow analysis
+  throw new Error("Unreachable")
+}
+
+const client = new TaxMaxi({ apiKey: "your-session-token" })
+
+const { sources } = await withRetry(() => client.sources.list())
+```
+
+<Tip>
+  Always log `error.requestId` when reporting issues to TaxMaxi support. It lets the team trace the exact request in the server logs.
+</Tip>
