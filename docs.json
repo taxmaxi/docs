@@ -85,5 +85,14 @@
         ]
       }
     ]
+  },
+  "logo": {
+    "light": "/images/taxmaxi.svg",
+    "dark": "/images/taxmaxi-dark.svg",
+    "href": "https://www.taxmaxi.com"
+  },
+  "favicon": {
+    "light": "/images/favicon-96x96.png",
+    "dark": "/images/favicon.svg"
   }
 }
