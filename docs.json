@@ -94,5 +94,8 @@
   "favicon": {
     "light": "/images/favicon-96x96.png",
     "dark": "/images/favicon.svg"
+  },
+  "api": {
+    "openapi": "https://api.taxmaxi.com/openapi.json"
   }
 }
