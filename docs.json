@@ -87,8 +87,8 @@
     ]
   },
   "logo": {
-    "light": "/images/taxmaxi.svg",
-    "dark": "/images/taxmaxi-dark.svg",
+    "light": "/images/logo-wordmark.svg",
+    "dark": "/images/logo-wordmark-dark.svg",
     "href": "https://www.taxmaxi.com"
   },
   "favicon": {
@@ -97,5 +97,15 @@
   },
   "api": {
     "openapi": "https://api.taxmaxi.com/openapi.json"
+  },
+  "icons": {
+    "library": "lucide"
+  },
+  "footer": {
+    "socials": {
+      "x": "https://x.com/TaxMaxiHQ",
+      "github": "https://github.com/taxmaxi/taxmaxi",
+      "linkedin": "https://www.linkedin.com/company/taxmaxi"
+    }
   }
 }
